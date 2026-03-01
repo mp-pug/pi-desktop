@@ -178,6 +178,20 @@ html, body {
   display: block;
 }
 
+.chart-card.signal-buy {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.chart-card.signal-sell {
+  background: #fff1f2;
+  border-color: #fca5a5;
+}
+
+.chart-card.signal-neutral {
+  /* Standard-Stil, keine Änderung */
+}
+
 /* ── Kontostände ──────────────────────────────────────────────────────────── */
 .balances-section {
   display: flex;

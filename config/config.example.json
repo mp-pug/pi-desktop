@@ -16,6 +16,12 @@
     "api_secret": "DEIN_BITVAVO_API_SECRET"
   },
 
+  "freqtrade": {
+    "url": "http://192.168.178.2:8080",
+    "username": "DEIN_FREQTRADE_USERNAME",
+    "password": "DEIN_FREQTRADE_PASSWORT"
+  },
+
   "rss_feeds": [
     "https://cointelegraph.com/rss",
     "https://coindesk.com/arc/outboundfeeds/rss/",

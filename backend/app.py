@@ -226,6 +226,105 @@ def get_charts():
     return jsonify(result)
 
 
+# ── Freqtrade Signale ────────────────────────────────────────────────────────
+
+# Mapping: Dashboard-Symbol → Freqtrade Pair-Präfix
+FT_SYMBOL_MAP = {
+    "BTC":  "BTC",
+    "ETH":  "ETH",
+    "BNB":  "BNB",
+    "DOT":  "DOT",
+    "XRP":  "XRP",
+    "ADA":  "ADA",
+    "LINK": "LINK",
+    "SOL":  "SOL",
+}
+
+def ft_session(cfg):
+    """Gibt eine requests.Session mit Basic-Auth für Freqtrade zurück."""
+    ft = cfg.get("freqtrade", {})
+    s = requests.Session()
+    # Freqtrade verwendet JWT – erst Token holen
+    resp = s.post(
+        ft["url"] + "/api/v1/token/login",
+        json={"username": ft["username"], "password": ft["password"]},
+        timeout=5,
+    )
+    resp.raise_for_status()
+    token = resp.json().get("access_token")
+    s.headers.update({"Authorization": f"Bearer {token}"})
+    return s, ft["url"]
+
+@app.route("/api/signals")
+def get_signals():
+    """
+    Fragt die Freqtrade API nach den aktuellen Kauf/Verkauf-Signalen
+    für jeden Coin in der Watchlist.
+    Rückgabe pro Symbol: "buy" | "sell" | "neutral" | "error"
+    """
+    try:
+        cfg = load_config()
+        if "freqtrade" not in cfg:
+            return jsonify({"error": "Freqtrade nicht konfiguriert"}), 400
+
+        session, base_url = ft_session(cfg)
+
+        # Whitelist holen um zu wissen welche Pairs aktiv sind
+        wl_resp = session.get(base_url + "/api/v1/whitelist", timeout=5)
+        wl_resp.raise_for_status()
+        whitelist = wl_resp.json().get("whitelist", [])
+
+        # Offene Trades holen
+        trades_resp = session.get(base_url + "/api/v1/status", timeout=5)
+        trades_resp.raise_for_status()
+        open_trades = {t["pair"] for t in trades_resp.json()}
+
+        signals = {}
+        for symbol, ft_base in FT_SYMBOL_MAP.items():
+            # Passendes Pair in der Whitelist suchen (z.B. BTC/USDT, BTC/EUR …)
+            pair = next((p for p in whitelist if p.startswith(ft_base + "/")), None)
+            if not pair:
+                signals[symbol] = "neutral"
+                continue
+
+            # Analyzed dataframe für das Pair abrufen
+            df_resp = session.get(
+                base_url + "/api/v1/analyzed_dataframe",
+                params={"pair": pair, "timeframe": "5m"},
+                timeout=5,
+            )
+            if df_resp.status_code != 200:
+                signals[symbol] = "neutral"
+                continue
+
+            df_data = df_resp.json()
+            columns = df_data.get("columns", [])
+            rows = df_data.get("data", [])
+
+            if not rows or not columns:
+                signals[symbol] = "neutral"
+                continue
+
+            # Letzte Kerze auswerten
+            last = dict(zip(columns, rows[-1]))
+            enter_long  = bool(last.get("enter_long",  last.get("buy",  0)))
+            enter_short = bool(last.get("enter_short", last.get("sell", 0)))
+
+            if pair in open_trades:
+                signals[symbol] = "buy"       # Position offen → grün
+            elif enter_long:
+                signals[symbol] = "buy"
+            elif enter_short:
+                signals[symbol] = "sell"
+            else:
+                signals[symbol] = "neutral"
+
+        return jsonify(signals)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ── Health ────────────────────────────────────────────────────────────────────
 
 @app.route("/health")

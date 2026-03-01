@@ -83,7 +83,7 @@ async function loadCharts() {
       const priceStr = formatPrice(info.price);
       const path = sparklinePath(info.sparkline, 100, 32);
       const color = up ? "#16a34a" : "#dc2626";
-      return `<div class="chart-card">
+      return `<div class="chart-card" data-symbol="${escapeHtml(symbol)}">
         <div class="chart-header">
           <span class="chart-symbol">${escapeHtml(symbol)}</span>
           <span class="chart-change ${up ? "up" : "down"}">${changeStr}</span>
@@ -104,6 +104,22 @@ function formatPrice(n) {
   if (n >= 1000) return n.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   if (n >= 1)    return n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return n.toLocaleString("de-DE", { minimumFractionDigits: 4, maximumFractionDigits: 6 });
+}
+
+// ── Freqtrade Signale ─────────────────────────────────────────────────────────
+async function loadSignals() {
+  try {
+    const signals = await fetchJSON(`${API}/api/signals`);
+    if (signals.error) return; // Freqtrade nicht konfiguriert oder nicht erreichbar
+    document.querySelectorAll(".chart-card[data-symbol]").forEach(card => {
+      const symbol = card.dataset.symbol;
+      card.classList.remove("signal-buy", "signal-sell", "signal-neutral");
+      const sig = signals[symbol] || "neutral";
+      card.classList.add(`signal-${sig}`);
+    });
+  } catch (e) {
+    // Freqtrade nicht erreichbar – kein Fehler anzeigen, Karten bleiben ungefärbt
+  }
 }
 
 // ── Kontostände ───────────────────────────────────────────────────────────────
@@ -203,14 +219,17 @@ function formatAmount(num) {
 
 // ── Initialisierung & Refresh-Intervalle ──────────────────────────────────────
 loadWeather();
-loadCharts();
+// Kurse laden, danach sofort Signale anwenden
+loadCharts().then(() => loadSignals());
 loadBalances();
 loadTicker();
 
 // Wetter alle 30 Minuten (max. ~48 Anfragen/Tag, bleibt unter dem Limit von 50)
 setInterval(loadWeather, 30 * 60 * 1000);
-// Kurse alle 5 Minuten
-setInterval(loadCharts, 5 * 60 * 1000);
+// Kurse alle 5 Minuten, danach Signale aktualisieren
+setInterval(() => loadCharts().then(() => loadSignals()), 5 * 60 * 1000);
+// Signale alle 2 Minuten extra aktualisieren (ohne Charts neu zu laden)
+setInterval(loadSignals, 2 * 60 * 1000);
 // Kontostände alle 2 Minuten
 setInterval(loadBalances, 2 * 60 * 1000);
 // Newsfeed alle 15 Minuten
