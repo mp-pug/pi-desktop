@@ -241,17 +241,22 @@ FT_SYMBOL_MAP = {
 }
 
 def ft_session(cfg):
-    """Gibt eine requests.Session mit Basic-Auth für Freqtrade zurück."""
+    """Gibt eine requests.Session mit JWT-Auth für Freqtrade zurück."""
     ft = cfg.get("freqtrade", {})
     s = requests.Session()
-    # Freqtrade verwendet JWT – erst Token holen
+    # Freqtrade erwartet application/x-www-form-urlencoded
     resp = s.post(
         ft["url"] + "/api/v1/token/login",
-        json={"username": ft["username"], "password": ft["password"]},
+        data={"username": ft["username"], "password": ft["password"]},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
         timeout=5,
     )
+    if resp.status_code == 401:
+        raise ValueError("Freqtrade: Ungültige Zugangsdaten (401)")
     resp.raise_for_status()
     token = resp.json().get("access_token")
+    if not token:
+        raise ValueError("Freqtrade: Kein Token erhalten")
     s.headers.update({"Authorization": f"Bearer {token}"})
     return s, ft["url"]
 
