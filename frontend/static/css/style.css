@@ -48,6 +48,16 @@ html, body {
 /* ── Datum & Uhrzeit ──────────────────────────────────────────────────────── */
 .datetime-section {
   text-align: center;
+  position: relative;
+}
+
+.btc-logo {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 48px;
+  height: 48px;
+  opacity: 0.9;
 }
 
 .time {
