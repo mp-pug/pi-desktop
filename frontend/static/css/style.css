@@ -9,14 +9,15 @@
   --bg:          #f0f2f5;
   --bg-card:     #ffffff;
   --accent:      #2563eb;
-  --accent-dim:  #1d4ed8;
   --text:        #1a1d27;
   --text-muted:  #6b7280;
   --border:      #e2e5eb;
+  --topbar-bg:   #000000;
+  --topbar-h:    56px;
   --ticker-bg:   #000000;
   --ticker-text: #ffffff;
-  --ticker-h:    42px;
-  font-size:     16px;
+  --ticker-h:    38px;
+  font-size:     15px;
   font-family:   'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
@@ -28,105 +29,119 @@ html, body {
   overflow: hidden;
 }
 
-/* ── Layout ───────────────────────────────────────────────────────────────── */
-.dashboard {
+/* ── Kopfzeile ────────────────────────────────────────────────────────────── */
+.topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--topbar-h);
+  background: var(--topbar-bg);
   display: flex;
-  width: 100vw;
-  height: calc(100vh - var(--ticker-h));
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  gap: 24px;
+  z-index: 10;
 }
 
-/* ── Main ─────────────────────────────────────────────────────────────────── */
-.main {
-  flex: 1;
+.topbar-datetime {
   display: flex;
-  flex-direction: column;
-  padding: 24px 28px;
-  gap: 20px;
-  overflow: hidden;
-}
-
-/* ── Datum & Uhrzeit ──────────────────────────────────────────────────────── */
-.datetime-section {
-  text-align: center;
+  align-items: baseline;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .time {
-  font-size: 2.8rem;
+  font-size: 1.9rem;
   font-weight: 300;
-  letter-spacing: 0.05em;
-  color: var(--text);
+  letter-spacing: 0.04em;
+  color: #ffffff;
   line-height: 1;
 }
 
 .date {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  margin-top: 3px;
-  letter-spacing: 0.05em;
+  font-size: 0.72rem;
+  color: #9ca3af;
+  letter-spacing: 0.04em;
 }
 
-/* ── Wetter ───────────────────────────────────────────────────────────────── */
-.weather-section {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px 20px;
+/* Wetter in der Topbar */
+.topbar-weather {
   display: flex;
   align-items: center;
-  gap: 20px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  gap: 10px;
+  flex: 1;
+  justify-content: flex-end;
 }
 
 .weather-icon {
-  width: 52px;
-  height: 52px;
+  width: 36px;
+  height: 36px;
 }
 
 .weather-temp {
-  font-size: 2.4rem;
+  font-size: 1.4rem;
   font-weight: 300;
-  color: var(--text);
+  color: #ffffff;
 }
 
 .weather-details {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .weather-desc {
-  font-size: 1rem;
-  color: var(--text);
+  font-size: 0.78rem;
+  color: #e5e7eb;
 }
 
 .weather-meta {
-  font-size: 0.8rem;
-  color: var(--text-muted);
+  font-size: 0.68rem;
+  color: #9ca3af;
 }
 
 .weather-city {
-  font-size: 0.9rem;
-  color: var(--accent);
+  font-size: 0.75rem;
+  color: #60a5fa;
   font-weight: 500;
+}
+
+/* ── Hauptbereich ─────────────────────────────────────────────────────────── */
+.dashboard {
+  display: flex;
+  width: 100vw;
+  height: calc(100vh - var(--topbar-h) - var(--ticker-h));
+  margin-top: var(--topbar-h);
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px;
+  gap: 10px;
+  overflow: hidden;
 }
 
 /* ── Kursdiagramme ────────────────────────────────────────────────────────── */
 .charts-section {
   display: flex;
-  gap: 8px;
-  overflow: hidden;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .chart-card {
   flex: 1;
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 8px 10px 6px;
+  border-radius: 8px;
+  padding: 6px 8px 4px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  gap: 1px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
   min-width: 0;
 }
 
@@ -137,14 +152,14 @@ html, body {
 }
 
 .chart-symbol {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 700;
   color: var(--text);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
 }
 
 .chart-change {
-  font-size: 0.68rem;
+  font-size: 0.63rem;
   font-weight: 600;
 }
 
@@ -152,68 +167,70 @@ html, body {
 .chart-change.down { color: #dc2626; }
 
 .chart-price {
-  font-size: 0.7rem;
+  font-size: 0.63rem;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .chart-sparkline {
   width: 100%;
-  height: 32px;
+  height: 26px;
   display: block;
 }
 
 /* ── Kontostände ──────────────────────────────────────────────────────────── */
 .balances-section {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   flex: 1;
-  overflow: hidden;
+  min-height: 0;
 }
 
 .exchange-block {
   flex: 1;
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px 18px;
+  border-radius: 10px;
+  padding: 10px 14px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  min-height: 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
 
 .exchange-title {
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .exchange-favicon {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 3px;
-  object-fit: contain;
 }
 
+/* Balance-List füllt den restlichen Platz aus und verteilt Einträge gleichmäßig */
 .balance-list {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  overflow-y: auto;
+  justify-content: space-evenly;
+  min-height: 0;
 }
 
 .balance-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 0;
+  padding: 3px 0;
   border-bottom: 1px solid var(--border);
 }
 
@@ -222,13 +239,13 @@ html, body {
 }
 
 .balance-symbol {
-  font-size: 0.9rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--accent);
 }
 
 .balance-amount {
-  font-size: 0.88rem;
+  font-size: 0.76rem;
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
@@ -243,7 +260,7 @@ html, body {
   background: var(--ticker-bg);
   display: flex;
   align-items: center;
-  border-top: 1px solid #222;
+  border-top: 1px solid #1f1f1f;
   overflow: hidden;
 }
 
@@ -251,10 +268,10 @@ html, body {
   flex-shrink: 0;
   background: var(--accent);
   color: #fff;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.12em;
-  padding: 0 12px;
+  padding: 0 10px;
   height: 100%;
   display: flex;
   align-items: center;
@@ -266,12 +283,12 @@ html, body {
   height: 100%;
   display: flex;
   align-items: center;
-  padding: 0 20px;
+  padding: 0 16px;
 }
 
 .ticker-headline {
   color: var(--ticker-text);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -285,19 +302,19 @@ html, body {
 
 .ticker-counter {
   flex-shrink: 0;
-  color: var(--text-muted);
-  font-size: 0.7rem;
-  padding: 0 12px;
+  color: #6b7280;
+  font-size: 0.65rem;
+  padding: 0 10px;
   white-space: nowrap;
 }
 
 /* ── Hilfsstile ───────────────────────────────────────────────────────────── */
 .loading {
   color: var(--text-muted);
-  font-size: 0.82rem;
+  font-size: 0.78rem;
 }
 
 .error {
   color: #e05c5c;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
 }

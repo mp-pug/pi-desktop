@@ -7,21 +7,21 @@
   <link rel="stylesheet" href="/static/css/style.css" />
 </head>
 <body>
+
+  <!-- KOPFZEILE: Datum/Uhrzeit + Wetter -->
+  <header class="topbar">
+    <div class="topbar-datetime">
+      <div class="time" id="clock">--:--:--</div>
+      <div class="date" id="date-display">--</div>
+    </div>
+    <div class="topbar-weather" id="weather">
+      <div class="loading" style="color:#aaa">Lade Wetter...</div>
+    </div>
+  </header>
+
+  <!-- HAUPTBEREICH -->
   <div class="dashboard">
-
-    <!-- HAUPTBEREICH -->
     <main class="main">
-
-      <!-- Datum & Uhrzeit -->
-      <section class="datetime-section">
-        <div class="time" id="clock">--:--:--</div>
-        <div class="date" id="date-display">--</div>
-      </section>
-
-      <!-- Wetter -->
-      <section class="weather-section" id="weather">
-        <div class="loading">Lade Wetter...</div>
-      </section>
 
       <!-- Kursdiagramme -->
       <section class="charts-section" id="charts-section">
@@ -32,36 +32,30 @@
       <section class="balances-section">
         <div class="exchange-block">
           <h3 class="exchange-title">
-            <!-- Kraken Logo SVG -->
             <svg class="exchange-favicon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
               <circle cx="16" cy="16" r="16" fill="#5741D9"/>
               <path fill="#fff" d="M8 8h3.5v6.2l5.6-6.2H21l-6 6.6 6.4 9.4h-3.9l-4.7-7.1-1.3 1.4V24H8V8z"/>
             </svg>
             Kraken
           </h3>
-          <div id="kraken-balances" class="balance-list">
-            <div class="loading">Lade...</div>
-          </div>
+          <div id="kraken-balances" class="balance-list"></div>
         </div>
         <div class="exchange-block">
           <h3 class="exchange-title">
-            <!-- Bitvavo Logo SVG -->
             <svg class="exchange-favicon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
               <circle cx="16" cy="16" r="16" fill="#1A4CF6"/>
               <path fill="#fff" d="M9 22l4.5-12h2.3L20.3 22h-2.4l-1-2.8h-4.6L11.4 22H9zm4-4.8h3.3L14.7 12l-1.7 5.2z"/>
             </svg>
             Bitvavo
           </h3>
-          <div id="bitvavo-balances" class="balance-list">
-            <div class="loading">Lade...</div>
-          </div>
+          <div id="bitvavo-balances" class="balance-list"></div>
         </div>
       </section>
 
     </main>
   </div>
 
-  <!-- RSS Ticker am unteren Rand -->
+  <!-- RSS Ticker -->
   <footer class="ticker-bar">
     <div class="ticker-label">NEWS</div>
     <div class="ticker-wrapper">
