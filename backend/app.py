@@ -9,10 +9,6 @@ import requests
 import feedparser
 from flask import Flask, jsonify
 from flask_cors import CORS
-from caldav import DAVClient
-from icalendar import Calendar
-from datetime import datetime, date, timezone
-import pytz
 
 app = Flask(__name__)
 CORS(app)
@@ -51,55 +47,6 @@ def get_weather():
             "humidity": data["main"]["humidity"],
             "wind_speed": round(data["wind"]["speed"] * 3.6, 1),
         })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-# ── Kalender (CalDAV) ─────────────────────────────────────────────────────────
-
-@app.route("/api/calendar")
-def get_calendar():
-    try:
-        cfg = load_config()
-        cal_cfg = cfg["caldav"]
-        client = DAVClient(
-            url=cal_cfg["url"],
-            username=cal_cfg["username"],
-            password=cal_cfg["password"],
-        )
-        principal = client.principal()
-        calendars = principal.calendars()
-
-        today = date.today()
-        events = []
-
-        for calendar in calendars:
-            try:
-                results = calendar.date_search(
-                    start=datetime(today.year, today.month, today.day, 0, 0, 0),
-                    end=datetime(today.year, today.month, today.day, 23, 59, 59),
-                    expand=True,
-                )
-                for event in results:
-                    cal = Calendar.from_ical(event.data)
-                    for component in cal.walk():
-                        if component.name == "VEVENT":
-                            dtstart = component.get("DTSTART")
-                            summary = str(component.get("SUMMARY", "Kein Titel"))
-                            if dtstart:
-                                dt = dtstart.dt
-                                if isinstance(dt, datetime):
-                                    if dt.tzinfo:
-                                        dt = dt.astimezone(pytz.timezone(cfg.get("timezone", "Europe/Berlin")))
-                                    time_str = dt.strftime("%H:%M")
-                                else:
-                                    time_str = "Ganztägig"
-                                events.append({"title": summary, "time": time_str})
-            except Exception:
-                continue
-
-        events.sort(key=lambda x: x["time"] if x["time"] != "Ganztägig" else "00:00")
-        return jsonify(events)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

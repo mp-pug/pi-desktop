@@ -53,26 +53,6 @@ async function loadWeather() {
   }
 }
 
-// ── Kalender ──────────────────────────────────────────────────────────────────
-async function loadCalendar() {
-  const el = document.getElementById("calendar-list");
-  try {
-    const events = await fetchJSON(`${API}/api/calendar`);
-    if (!Array.isArray(events) || events.length === 0) {
-      el.innerHTML = `<div class="no-events">Keine Termine heute</div>`;
-      return;
-    }
-    el.innerHTML = events.map(ev => `
-      <div class="event-item">
-        <div class="event-time">${ev.time}</div>
-        <div class="event-title">${escapeHtml(ev.title)}</div>
-      </div>
-    `).join("");
-  } catch (e) {
-    el.innerHTML = `<span class="error">Kalender nicht verfügbar</span>`;
-  }
-}
-
 // ── Kontostände ───────────────────────────────────────────────────────────────
 function renderBalances(containerId, data) {
   const el = document.getElementById(containerId);
@@ -149,14 +129,11 @@ function formatAmount(num) {
 
 // ── Initialisierung & Refresh-Intervalle ──────────────────────────────────────
 loadWeather();
-loadCalendar();
 loadBalances();
 loadTicker();
 
-// Wetter alle 10 Minuten
-setInterval(loadWeather, 10 * 60 * 1000);
-// Kalender alle 5 Minuten
-setInterval(loadCalendar, 5 * 60 * 1000);
+// Wetter alle 30 Minuten (max. ~48 Anfragen/Tag, bleibt unter dem Limit von 50)
+setInterval(loadWeather, 30 * 60 * 1000);
 // Kontostände alle 2 Minuten
 setInterval(loadBalances, 2 * 60 * 1000);
 // Newsfeed alle 15 Minuten

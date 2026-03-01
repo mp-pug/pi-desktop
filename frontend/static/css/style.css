@@ -8,7 +8,6 @@
 :root {
   --bg:          #0d0f14;
   --bg-card:     #151820;
-  --bg-sidebar:  #111318;
   --accent:      #4f8ef7;
   --accent-dim:  #2d5cb8;
   --text:        #e8eaf0;
@@ -17,7 +16,6 @@
   --ticker-bg:   #000000;
   --ticker-text: #ffffff;
   --ticker-h:    42px;
-  --sidebar-w:   260px;
   font-size:     16px;
   font-family:   'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
@@ -35,61 +33,6 @@ html, body {
   display: flex;
   width: 100vw;
   height: calc(100vh - var(--ticker-h));
-}
-
-/* ── Sidebar ──────────────────────────────────────────────────────────────── */
-.sidebar {
-  width: var(--sidebar-w);
-  min-width: var(--sidebar-w);
-  background: var(--bg-sidebar);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  padding: 24px 16px;
-  overflow-y: auto;
-}
-
-.sidebar-title {
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: 16px;
-}
-
-.calendar-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.event-item {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
-  border-radius: 6px;
-  padding: 10px 12px;
-}
-
-.event-time {
-  font-size: 0.75rem;
-  color: var(--accent);
-  font-weight: 600;
-  margin-bottom: 3px;
-}
-
-.event-title {
-  font-size: 0.88rem;
-  color: var(--text);
-  line-height: 1.3;
-}
-
-.no-events {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  text-align: center;
-  margin-top: 20px;
 }
 
 /* ── Main ─────────────────────────────────────────────────────────────────── */

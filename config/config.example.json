@@ -6,12 +6,6 @@
     "city": "Berlin"
   },
 
-  "caldav": {
-    "url": "https://dein-caldav-server/dav/",
-    "username": "benutzer@beispiel.de",
-    "password": "DEIN_CALDAV_PASSWORT"
-  },
-
   "kraken": {
     "api_key": "DEIN_KRAKEN_API_KEY",
     "api_secret": "DEIN_KRAKEN_API_SECRET"
