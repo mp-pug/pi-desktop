@@ -177,6 +177,55 @@ def get_bitvavo():
         return jsonify({"error": str(e)}), 500
 
 
+# ── Kursdiagramme (öffentlich, kein API-Key nötig) ───────────────────────────
+
+# Kraken Handelspaar-Mapping
+WATCHLIST = {
+    "BTC":  "XXBTZEUR",
+    "ETH":  "XETHZEUR",
+    "BNB":  "BNBEUR",
+    "DOT":  "DOTEUR",
+    "XRP":  "XXRPZEUR",
+    "ADA":  "ADAEUR",
+    "LINK": "LINKEUR",
+    "SOL":  "SOLEUR",
+}
+
+@app.route("/api/charts")
+def get_charts():
+    """
+    Liefert für jeden Coin den aktuellen Preis und die letzten 24
+    Stunden-Schlusskurse (1h-OHLC) als Sparkline-Daten.
+    Verwendet ausschließlich öffentliche Kraken-Endpunkte.
+    """
+    result = {}
+    for symbol, pair in WATCHLIST.items():
+        try:
+            # OHLC: interval=60 (1h), letzte 25 Kerzen → 24h Sparkline
+            r = requests.get(
+                "https://api.kraken.com/0/public/OHLC",
+                params={"pair": pair, "interval": 60},
+                timeout=10,
+            )
+            data = r.json()
+            if data.get("error"):
+                raise ValueError(data["error"])
+            ohlc = list(data["result"].values())[0]
+            # Jede Kerze: [time, open, high, low, close, vwap, volume, count]
+            closes = [float(c[4]) for c in ohlc[-25:]]
+            current = closes[-1]
+            open_24h = closes[0]
+            change_pct = ((current - open_24h) / open_24h * 100) if open_24h else 0
+            result[symbol] = {
+                "price": current,
+                "change_pct": round(change_pct, 2),
+                "sparkline": closes,
+            }
+        except Exception as e:
+            result[symbol] = {"error": str(e)}
+    return jsonify(result)
+
+
 # ── Health ────────────────────────────────────────────────────────────────────
 
 @app.route("/health")

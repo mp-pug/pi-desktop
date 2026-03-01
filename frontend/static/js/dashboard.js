@@ -53,6 +53,59 @@ async function loadWeather() {
   }
 }
 
+// ── Kursdiagramme ─────────────────────────────────────────────────────────────
+function sparklinePath(values, w, h) {
+  if (!values || values.length < 2) return "";
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const step = w / (values.length - 1);
+  return values.map((v, i) => {
+    const x = i * step;
+    const y = h - ((v - min) / range) * h;
+    return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+}
+
+async function loadCharts() {
+  const section = document.getElementById("charts-section");
+  try {
+    const data = await fetchJSON(`${API}/api/charts`);
+    const cards = Object.entries(data).map(([symbol, info]) => {
+      if (info.error) {
+        return `<div class="chart-card">
+          <div class="chart-symbol">${escapeHtml(symbol)}</div>
+          <div class="error" style="font-size:0.65rem">-</div>
+        </div>`;
+      }
+      const up = info.change_pct >= 0;
+      const changeStr = `${up ? "+" : ""}${info.change_pct.toFixed(2)}%`;
+      const priceStr = formatPrice(info.price);
+      const path = sparklinePath(info.sparkline, 100, 32);
+      const color = up ? "#16a34a" : "#dc2626";
+      return `<div class="chart-card">
+        <div class="chart-header">
+          <span class="chart-symbol">${escapeHtml(symbol)}</span>
+          <span class="chart-change ${up ? "up" : "down"}">${changeStr}</span>
+        </div>
+        <div class="chart-price">${priceStr} €</div>
+        <svg class="chart-sparkline" viewBox="0 0 100 32" preserveAspectRatio="none">
+          <path d="${path}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+        </svg>
+      </div>`;
+    }).join("");
+    section.innerHTML = cards;
+  } catch (e) {
+    section.innerHTML = `<span class="error">Kurse nicht verfügbar: ${e.message}</span>`;
+  }
+}
+
+function formatPrice(n) {
+  if (n >= 1000) return n.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  if (n >= 1)    return n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n.toLocaleString("de-DE", { minimumFractionDigits: 4, maximumFractionDigits: 6 });
+}
+
 // ── Kontostände ───────────────────────────────────────────────────────────────
 function renderBalances(containerId, data) {
   const el = document.getElementById(containerId);
@@ -150,11 +203,14 @@ function formatAmount(num) {
 
 // ── Initialisierung & Refresh-Intervalle ──────────────────────────────────────
 loadWeather();
+loadCharts();
 loadBalances();
 loadTicker();
 
 // Wetter alle 30 Minuten (max. ~48 Anfragen/Tag, bleibt unter dem Limit von 50)
 setInterval(loadWeather, 30 * 60 * 1000);
+// Kurse alle 5 Minuten
+setInterval(loadCharts, 5 * 60 * 1000);
 // Kontostände alle 2 Minuten
 setInterval(loadBalances, 2 * 60 * 1000);
 // Newsfeed alle 15 Minuten
