@@ -1,0 +1,30 @@
+{
+  "timezone": "Europe/Berlin",
+
+  "openweather": {
+    "api_key": "DEIN_OPENWEATHER_API_KEY",
+    "city": "Berlin"
+  },
+
+  "caldav": {
+    "url": "https://dein-caldav-server/dav/",
+    "username": "benutzer@beispiel.de",
+    "password": "DEIN_CALDAV_PASSWORT"
+  },
+
+  "kraken": {
+    "api_key": "DEIN_KRAKEN_API_KEY",
+    "api_secret": "DEIN_KRAKEN_API_SECRET"
+  },
+
+  "bitvavo": {
+    "api_key": "DEIN_BITVAVO_API_KEY",
+    "api_secret": "DEIN_BITVAVO_API_SECRET"
+  },
+
+  "rss_feeds": [
+    "https://cointelegraph.com/rss",
+    "https://coindesk.com/arc/outboundfeeds/rss/",
+    "https://decrypt.co/feed"
+  ]
+}

@@ -1,0 +1,44 @@
+services:
+
+  backend:
+    build:
+      context: ./backend
+      # Explizit ARM 32-Bit für Raspberry Pi 3B+
+      platforms:
+        - linux/arm/v7
+    image: pi-dashboard-backend:latest
+    container_name: pi-dashboard-backend
+    restart: unless-stopped
+    volumes:
+      - config-data:/config
+    environment:
+      - CONFIG_PATH=/config/config.json
+    expose:
+      - "5000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      platforms:
+        - linux/arm/v7
+    image: pi-dashboard-frontend:latest
+    container_name: pi-dashboard-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  config-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./config

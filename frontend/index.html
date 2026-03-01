@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pi Dashboard</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <div class="dashboard">
+
+    <!-- LINKE SPALTE: Kalender -->
+    <aside class="sidebar">
+      <h2 class="sidebar-title">Heutige Termine</h2>
+      <div id="calendar-list" class="calendar-list">
+        <div class="loading">Lade Termine...</div>
+      </div>
+    </aside>
+
+    <!-- HAUPTBEREICH -->
+    <main class="main">
+
+      <!-- Datum & Uhrzeit -->
+      <section class="datetime-section">
+        <div class="time" id="clock">--:--:--</div>
+        <div class="date" id="date-display">--</div>
+      </section>
+
+      <!-- Wetter -->
+      <section class="weather-section" id="weather">
+        <div class="loading">Lade Wetter...</div>
+      </section>
+
+      <!-- Kontostände -->
+      <section class="balances-section">
+        <div class="exchange-block">
+          <h3 class="exchange-title">Kraken</h3>
+          <div id="kraken-balances" class="balance-list">
+            <div class="loading">Lade...</div>
+          </div>
+        </div>
+        <div class="exchange-block">
+          <h3 class="exchange-title">Bitvavo</h3>
+          <div id="bitvavo-balances" class="balance-list">
+            <div class="loading">Lade...</div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- RSS Ticker am unteren Rand -->
+  <footer class="ticker-bar">
+    <div class="ticker-label">NEWS</div>
+    <div class="ticker-wrapper">
+      <div class="ticker-track" id="ticker-track">
+        <span class="ticker-loading">Lade Nachrichten...</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/static/js/dashboard.js"></script>
+</body>
+</html>

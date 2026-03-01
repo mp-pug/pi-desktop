@@ -1,0 +1,32 @@
+# Konfiguration (enthält API-Keys und Passwörter – niemals einchecken!)
+config/config.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Docker
+*.tar
+
+# Betriebssystem
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Editor
+.vscode/
+.idea/
+*.iml
+
+# Logs
+*.log

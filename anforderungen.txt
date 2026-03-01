@@ -1,0 +1,26 @@
+Das folgende Programm soll optimiert für einen 
+Raspberry Pi 3B+ mit 32-Bit System und einem 
+offiziellem 10 Zoll Bildschirm. 
+
+Schreibe ein Programm wahlweise in HTML,CSS,PHP,
+Javascript und/oder Python das folgendes macht:
+
+- Es soll das aktuelle Wetter anzeigen. Die Wetter
+Daten werden über die OpenWeather API geholt
+- Es soll das aktuelle Datum und die aktuelle Uhrzeit
+anzeigen, auf die Sekunde genau. 
+- Es soll eine CalDav Anbindung haben, um meine 
+aktuellen Termine aus meinem Kalender anzuzeigen. Die Termine sollen links
+auf dem Bildschirm angezeigt werden, mit "Heutige Termine" mehr nicht.
+Vom Termin selbst soll der Titel und die Uhrzeit angezeigt werden.
+- Die Konfiguration soll eine zentrale JSON Datei
+sein. Die Konfigurationsdatei soll in einem persistenten Docker Volume liegen,
+sodass es bei einer Änderung nur notwendig ist, den Container neu zu starten, aber nicht neu zu bauen. 
+- Am unteren Rand soll ein RSS Newsfeed Ticker eingebaut sein,
+die Nachrichten sollen sich langsam von rechts nach links fließend bewegen
+- Der RSS Feed soll Nachrichten zu Krypto Währungen und dem allgemeinen Krypto Markt enthalten
+- Es soll eine API Anbindung für Kraken und Bitvavo geben, so dass auf
+auf dem Bildschirm die aktuellen Kontostände der Accounts angezeigt werden (alle vorhandenen Währungen)
+- Das Programm soll in einem oder mehreren Docker Containern laufen, und mit einer 
+  zentralen Docker Compose Datei steuerbar sein. Beachte, dass die Architektur 32-Bit und ARM-Prozessor ist
+- Das Design soll schlicht und elegant gewählt sein. Der Newsfeed soll schwarzer Hintergrund mit weißem Text sein
