@@ -91,25 +91,46 @@ async function loadBalances() {
 }
 
 // ── RSS Ticker ────────────────────────────────────────────────────────────────
+const ticker = {
+  headlines: [],
+  index: 0,
+  interval: null,
+};
+
 async function loadTicker() {
-  const track = document.getElementById("ticker-track");
   try {
     const headlines = await fetchJSON(`${API}/api/news`);
-    if (!Array.isArray(headlines) || headlines.length === 0) {
-      track.innerHTML = `<span>Keine Nachrichten verfügbar</span>`;
-      return;
+    if (Array.isArray(headlines) && headlines.length > 0) {
+      ticker.headlines = headlines;
+      ticker.index = 0;
     }
-    // Doppelter Satz für nahtloses Scrollen
-    const items = headlines.map(h => `<span>${escapeHtml(h)}</span>`).join("");
-    track.innerHTML = items + items;
-
-    // Animationsdauer dynamisch: ~120px pro Sekunde
-    const totalWidth = track.scrollWidth / 2;
-    const duration = Math.max(30, totalWidth / 80);
-    track.style.animationDuration = `${duration}s`;
   } catch (e) {
-    track.innerHTML = `<span>Newsfeed nicht verfügbar</span>`;
+    if (ticker.headlines.length === 0) {
+      ticker.headlines = ["Newsfeed nicht verfügbar"];
+    }
   }
+  // Ticker-Loop starten (nur beim ersten Aufruf)
+  if (!ticker.interval) {
+    showNextHeadline();
+    ticker.interval = setInterval(showNextHeadline, 30000);
+  }
+}
+
+function showNextHeadline() {
+  if (ticker.headlines.length === 0) return;
+  const el = document.getElementById("ticker-headline");
+  const counter = document.getElementById("ticker-counter");
+
+  // Ausblenden
+  el.classList.remove("visible");
+
+  setTimeout(() => {
+    el.textContent = ticker.headlines[ticker.index];
+    counter.textContent = `${ticker.index + 1} / ${ticker.headlines.length}`;
+    // Einblenden
+    el.classList.add("visible");
+    ticker.index = (ticker.index + 1) % ticker.headlines.length;
+  }, 800); // nach der fade-out Transition
 }
 
 // ── Hilfsfunktionen ───────────────────────────────────────────────────────────

@@ -201,34 +201,29 @@ html, body {
   height: 100%;
   display: flex;
   align-items: center;
+  padding: 0 20px;
 }
 
-.ticker-track {
-  display: inline-flex;
-  white-space: nowrap;
-  animation: ticker-scroll linear infinite;
-  animation-duration: 60s;
-}
-
-.ticker-track span {
+.ticker-headline {
   color: var(--ticker-text);
   font-size: 0.85rem;
-  padding: 0 40px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity 0.8s ease;
 }
 
-.ticker-track span::after {
-  content: '  ●  ';
-  color: var(--accent);
-  margin-left: 40px;
+.ticker-headline.visible {
+  opacity: 1;
 }
 
-.ticker-track span:last-child::after {
-  content: '';
-}
-
-@keyframes ticker-scroll {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+.ticker-counter {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  padding: 0 12px;
+  white-space: nowrap;
 }
 
 /* ── Hilfsstile ───────────────────────────────────────────────────────────── */

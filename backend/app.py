@@ -36,8 +36,10 @@ def get_weather():
             f"&lang=de"
         )
         r = requests.get(url, timeout=10)
-        r.raise_for_status()
         data = r.json()
+        if r.status_code != 200:
+            message = data.get("message", f"HTTP {r.status_code}")
+            return jsonify({"error": f"OpenWeather: {message}"}), r.status_code
         return jsonify({
             "city": data["name"],
             "temp": round(data["main"]["temp"], 1),
