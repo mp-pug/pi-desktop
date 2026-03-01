@@ -244,11 +244,10 @@ def ft_session(cfg):
     """Gibt eine requests.Session mit JWT-Auth für Freqtrade zurück."""
     ft = cfg.get("freqtrade", {})
     s = requests.Session()
-    # Freqtrade erwartet application/x-www-form-urlencoded
+    # Freqtrade erwartet HTTP Basic Auth beim Token-Login
     resp = s.post(
         ft["url"] + "/api/v1/token/login",
-        data={"username": ft["username"], "password": ft["password"]},
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        auth=(ft["username"], ft["password"]),
         timeout=5,
     )
     if resp.status_code == 401:
