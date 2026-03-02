@@ -533,17 +533,19 @@ def generate_ai_summary():
         except Exception:
             pass
 
+    coin_list = ", ".join(coins)
     prompt = (
-        f"Erstelle eine prägnante Zusammenfassung (max. 5 Sätze auf Deutsch) "
-        f"des aktuellen Kryptomarkts für folgende Coins: {', '.join(coins)}. "
-        f"Berücksichtige aktuelle Markttrends, Sentiment und relevante Entwicklungen. "
-        f"Keine Finanzberatung, nur sachliche Marktübersicht."
+        f"Erstelle eine strukturierte Marktübersicht auf Deutsch für folgende Kryptowährungen: {coin_list}.\n\n"
+        f"Für JEDEN Coin einen eigenen Abschnitt im folgenden Format:\n"
+        f"**[SYMBOL]** – [1-2 Sätze zur aktuellen Marktlage, Trend und relevanten Entwicklungen]\n\n"
+        f"Danach eine kurze Gesamteinschätzung des Markts (1-2 Sätze).\n"
+        f"Nur sachliche Marktübersicht, keine Finanzberatung."
     )
 
     resp = requests.post(
         api_url,
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 400},
+        json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 900},
         timeout=30,
     )
     resp.raise_for_status()

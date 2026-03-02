@@ -242,7 +242,12 @@ async function loadAI() {
   try {
     const data = await fetchJSON(`${API}/api/ai-summary`);
     if (data.error) { el.innerHTML = `<span class="error">${escapeHtml(data.error)}</span>`; return; }
-    el.textContent = data.summary;
+    // Markdown **SYMBOL** → <strong>, Zeilenumbrüche → <br> / Absätze
+    const html = escapeHtml(data.summary)
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\n\n/g, "</p><p>")
+      .replace(/\n/g, "<br>");
+    el.innerHTML = `<p>${html}</p>`;
     ts.textContent = data.generated_at ? `Stand: ${data.generated_at}` : "";
   } catch(e) {
     el.innerHTML = `<span class="error">KI-Zusammenfassung nicht verfügbar: ${e.message}</span>`;
