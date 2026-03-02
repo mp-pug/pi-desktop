@@ -58,9 +58,27 @@
 
   <!-- TAB: STRATEGIE -->
   <div class="tab-content" id="tab-strategy">
+
+    <!-- Kopfzeile mit Info-Button -->
+    <div class="strategy-header">
+      <span class="strategy-header-title" id="strategy-name">Strategie</span>
+      <button class="strategy-info-btn" id="strategy-info-btn" title="Strategie-Beschreibung">
+        &#9432; Strategie-Info
+      </button>
+    </div>
+
+    <!-- Aufklappbare Infobox -->
+    <div class="strategy-infobox" id="strategy-infobox" style="display:none">
+      <div class="strategy-infobox-content" id="strategy-infobox-content">
+        <div class="loading">Lade Beschreibung...</div>
+      </div>
+    </div>
+
+    <!-- Indikator-Kacheln -->
     <div class="strategy-grid" id="strategy-grid">
       <div class="loading">Lade Strategie-Daten...</div>
     </div>
+
   </div>
 
   <!-- TAB: NEWS -->

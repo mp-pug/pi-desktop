@@ -130,6 +130,40 @@ html, body {
 .balance-amount { font-size: 0.76rem; color: var(--text); font-variant-numeric: tabular-nums; }
 
 /* ── STRATEGIE ────────────────────────────────────────────────────────────── */
+.strategy-header {
+  display: flex; justify-content: space-between; align-items: center;
+  flex-shrink: 0;
+}
+
+.strategy-header-title {
+  font-size: 0.85rem; font-weight: 600; color: var(--text-muted);
+  letter-spacing: 0.05em; text-transform: uppercase;
+}
+
+.strategy-info-btn {
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 6px;
+  padding: 5px 12px; font-size: 0.75rem; font-weight: 600;
+  cursor: pointer; letter-spacing: 0.03em;
+  transition: background 0.15s;
+}
+.strategy-info-btn:hover { background: #1d4ed8; }
+
+.strategy-infobox {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  overflow-y: auto; max-height: 45%;
+  flex-shrink: 0;
+}
+
+.strategy-infobox-content {
+  font-size: 0.8rem; color: var(--text); line-height: 1.65;
+}
+.strategy-infobox-content p { margin-bottom: 0.5em; }
+.strategy-infobox-content p:last-child { margin-bottom: 0; }
+.strategy-infobox-content strong { color: var(--accent); font-weight: 700; }
+
 .strategy-grid {
   display: flex; flex-wrap: wrap; gap: 10px;
   overflow-y: auto; align-content: flex-start; height: 100%;

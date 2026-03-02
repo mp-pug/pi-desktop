@@ -11,8 +11,10 @@ services:
     restart: unless-stopped
     volumes:
       - config-data:/config
+      - strategies-data:/strategies
     environment:
       - CONFIG_PATH=/config/config.json
+      - STRATEGIES_PATH=/strategies
     expose:
       - "5000"
     healthcheck:
@@ -42,3 +44,9 @@ volumes:
       type: none
       o: bind
       device: ./config
+  strategies-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./strategies

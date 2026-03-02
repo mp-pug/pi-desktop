@@ -512,6 +512,7 @@ def get_news_full():
 # ── KI-Zusammenfassung (Mammouth AI) ─────────────────────────────────────────
 
 _ai_cache = {"summary": None, "generated_at": 0}
+_strategy_info_cache: dict = {"description": None}
 
 def generate_ai_summary():
     """Generiert eine KI-Zusammenfassung des Kryptomarkts via Mammouth API."""
@@ -583,6 +584,80 @@ def get_ai_summary():
         return jsonify({"error": str(e)}), 500
 
 
+# ── Strategie-Beschreibung ───────────────────────────────────────────────────
+
+STRATEGIES_PATH = os.environ.get("STRATEGIES_PATH", "/strategies")
+
+def load_strategy_code():
+    """Liest die erste .py-Datei aus dem strategies-Verzeichnis."""
+    if not os.path.isdir(STRATEGIES_PATH):
+        return None, None
+    for fname in os.listdir(STRATEGIES_PATH):
+        if fname.endswith(".py"):
+            fpath = os.path.join(STRATEGIES_PATH, fname)
+            with open(fpath, "r") as f:
+                return fname, f.read()
+    return None, None
+
+def generate_strategy_description():
+    """Lässt die KI den Strategie-Code in verständliche Sprache übersetzen."""
+    cfg = load_config()
+    ai_cfg = cfg.get("mammouth", {})
+    api_key = ai_cfg.get("api_key", "")
+    model = ai_cfg.get("model", "claude-sonnet-4-5")
+    api_url = ai_cfg.get("url", "https://api.mammouth.ai/v1/chat/completions")
+
+    if not api_key:
+        return {"error": "Mammouth API nicht konfiguriert."}
+
+    fname, code = load_strategy_code()
+    if not code:
+        return {"error": "Keine Strategie-Datei im /strategies Verzeichnis gefunden."}
+
+    prompt = (
+        f"Analysiere folgende FreqTrade-Handelsstrategie ({fname}) und erstelle eine "
+        f"strukturierte Beschreibung auf Deutsch für einen Trader.\n\n"
+        f"Beantworte dabei folgende Punkte:\n"
+        f"**Strategie-Überblick** – Name, Zeitrahmen, Handelsstil\n"
+        f"**Kaufsignal (Entry)** – Exakte Bedingungen wann ein Kaufsignal ausgelöst wird\n"
+        f"**Verkaufssignal (Exit)** – Wann wird eine Position geschlossen (ROI, Stoploss, Signale)\n"
+        f"**Indikatoren** – Welche technischen Indikatoren werden verwendet und was bedeuten sie\n"
+        f"**Risikomanagement** – Stoploss, Position Sizing, ROI-Ziele\n"
+        f"**Stärken & Schwächen** – Kurze Einschätzung\n\n"
+        f"Hier ist der Code:\n```python\n{code}\n```"
+    )
+
+    resp = requests.post(
+        api_url,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 1200},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    description = resp.json()["choices"][0]["message"]["content"].strip()
+    return {"description": description, "filename": fname}
+
+@app.route("/api/strategy-info")
+def get_strategy_info():
+    """Gibt die gecachte KI-Beschreibung der Strategie zurück."""
+    if _strategy_info_cache["description"] is None:
+        return jsonify({"error": "Strategie-Beschreibung wird noch generiert, bitte kurz warten."}), 503
+    return jsonify(_strategy_info_cache["description"])
+
+def init_strategy_description():
+    """Wird beim Start des Containers aufgerufen – generiert die Beschreibung einmalig."""
+    try:
+        result = generate_strategy_description()
+        _strategy_info_cache["description"] = result
+        if "error" not in result:
+            print(f"Strategie-Beschreibung generiert: {result.get('filename')}")
+        else:
+            print(f"Strategie-Beschreibung Fehler: {result['error']}")
+    except Exception as e:
+        _strategy_info_cache["description"] = {"error": str(e)}
+        print(f"Strategie-Beschreibung Exception: {e}")
+
+
 # ── Health ────────────────────────────────────────────────────────────────────
 
 @app.route("/health")
@@ -591,4 +666,7 @@ def health():
 
 
 if __name__ == "__main__":
+    import threading
+    t = threading.Thread(target=init_strategy_description, daemon=True)
+    t.start()
     app.run(host="0.0.0.0", port=5000, debug=False)

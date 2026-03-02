@@ -144,6 +144,40 @@ async function loadBalances() {
   try { renderBalances("bitvavo-balances", await fetchJSON(`${API}/api/bitvavo`)); } catch(e) { document.getElementById("bitvavo-balances").innerHTML = `<span class="error">Nicht verfügbar</span>`; }
 }
 
+// ── Strategie Info-Button ─────────────────────────────────────────────────────
+let strategyInfoLoaded = false;
+
+document.getElementById("strategy-info-btn").addEventListener("click", () => {
+  const box = document.getElementById("strategy-infobox");
+  const isVisible = box.style.display !== "none";
+  box.style.display = isVisible ? "none" : "block";
+  if (!isVisible && !strategyInfoLoaded) loadStrategyInfo();
+});
+
+async function loadStrategyInfo() {
+  strategyInfoLoaded = true;
+  const el = document.getElementById("strategy-infobox-content");
+  try {
+    const data = await fetchJSON(`${API}/api/strategy-info`);
+    if (data.error) {
+      el.innerHTML = `<span class="error">${escapeHtml(data.error)}</span>`;
+      strategyInfoLoaded = false; // Retry beim nächsten Öffnen
+      return;
+    }
+    if (data.filename) {
+      document.getElementById("strategy-name").textContent = data.filename.replace(".py","");
+    }
+    const html = escapeHtml(data.description)
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\n\n/g, "</p><p>")
+      .replace(/\n/g, "<br>");
+    el.innerHTML = `<p>${html}</p>`;
+  } catch(e) {
+    el.innerHTML = `<span class="error">Nicht verfügbar: ${e.message}</span>`;
+    strategyInfoLoaded = false;
+  }
+}
+
 // ── Strategie-Tab ─────────────────────────────────────────────────────────────
 let strategyLoaded = false;
 
