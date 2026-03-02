@@ -177,10 +177,9 @@ def get_bitvavo():
         return jsonify({"error": str(e)}), 500
 
 
-# ── Kursdiagramme (öffentlich, kein API-Key nötig) ───────────────────────────
+# ── Kraken Pair-Mapping (Freqtrade EUR-Pairs → Kraken OHLC-Pairs) ────────────
 
-# Kraken Handelspaar-Mapping
-WATCHLIST = {
+KRAKEN_PAIR_MAP = {
     "BTC":  "XXBTZEUR",
     "ETH":  "XETHZEUR",
     "BNB":  "BNBEUR",
@@ -191,54 +190,84 @@ WATCHLIST = {
     "SOL":  "SOLEUR",
 }
 
+def ft_whitelist_symbols(session, base_url):
+    """Gibt Liste von Coin-Symbolen aus der Freqtrade-Whitelist zurück."""
+    resp = session.get(base_url + "/api/v1/whitelist", timeout=5)
+    resp.raise_for_status()
+    pairs = resp.json().get("whitelist", [])
+    # "BTC/EUR" → "BTC"
+    return [p.split("/")[0] for p in pairs]
+
+def ft_timeframe(session, base_url):
+    """Gibt den konfigurierten Timeframe des Bots zurück."""
+    resp = session.get(base_url + "/api/v1/show_config", timeout=5)
+    resp.raise_for_status()
+    return resp.json().get("timeframe", "1h")
+
+@app.route("/api/whitelist")
+def get_whitelist():
+    """Gibt die aktiven Coins des Freqtrade-Bots zurück."""
+    try:
+        cfg = load_config()
+        if "freqtrade" not in cfg:
+            return jsonify({"error": "Freqtrade nicht konfiguriert"}), 400
+        session, base_url = ft_session(cfg)
+        symbols = ft_whitelist_symbols(session, base_url)
+        return jsonify(symbols)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/api/charts")
 def get_charts():
     """
-    Liefert für jeden Coin den aktuellen Preis und die letzten 24
-    Stunden-Schlusskurse (1h-OHLC) als Sparkline-Daten.
-    Verwendet ausschließlich öffentliche Kraken-Endpunkte.
+    Liefert für jeden Coin der Freqtrade-Whitelist den aktuellen Preis
+    und 24h-Sparkline-Daten via Kraken Public API.
     """
-    result = {}
-    for symbol, pair in WATCHLIST.items():
-        try:
-            # OHLC: interval=60 (1h), letzte 25 Kerzen → 24h Sparkline
-            r = requests.get(
-                "https://api.kraken.com/0/public/OHLC",
-                params={"pair": pair, "interval": 60},
-                timeout=10,
-            )
-            data = r.json()
-            if data.get("error"):
-                raise ValueError(data["error"])
-            ohlc = list(data["result"].values())[0]
-            # Jede Kerze: [time, open, high, low, close, vwap, volume, count]
-            closes = [float(c[4]) for c in ohlc[-25:]]
-            current = closes[-1]
-            open_24h = closes[0]
-            change_pct = ((current - open_24h) / open_24h * 100) if open_24h else 0
-            result[symbol] = {
-                "price": current,
-                "change_pct": round(change_pct, 2),
-                "sparkline": closes,
-            }
-        except Exception as e:
-            result[symbol] = {"error": str(e)}
-    return jsonify(result)
+    try:
+        cfg = load_config()
+        symbols = []
+        if "freqtrade" in cfg:
+            try:
+                session, base_url = ft_session(cfg)
+                symbols = ft_whitelist_symbols(session, base_url)
+            except Exception:
+                pass
+        # Fallback auf statische Liste
+        if not symbols:
+            symbols = list(KRAKEN_PAIR_MAP.keys())
+
+        result = {}
+        for symbol in symbols:
+            kraken_pair = KRAKEN_PAIR_MAP.get(symbol)
+            if not kraken_pair:
+                continue
+            try:
+                r = requests.get(
+                    "https://api.kraken.com/0/public/OHLC",
+                    params={"pair": kraken_pair, "interval": 60},
+                    timeout=10,
+                )
+                data = r.json()
+                if data.get("error"):
+                    raise ValueError(data["error"])
+                ohlc = list(data["result"].values())[0]
+                closes = [float(c[4]) for c in ohlc[-25:]]
+                current = closes[-1]
+                open_24h = closes[0]
+                change_pct = ((current - open_24h) / open_24h * 100) if open_24h else 0
+                result[symbol] = {
+                    "price": current,
+                    "change_pct": round(change_pct, 2),
+                    "sparkline": closes,
+                }
+            except Exception as e:
+                result[symbol] = {"error": str(e)}
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
-# ── Freqtrade Signale ────────────────────────────────────────────────────────
-
-# Mapping: Dashboard-Symbol → Freqtrade Pair-Präfix
-FT_SYMBOL_MAP = {
-    "BTC":  "BTC",
-    "ETH":  "ETH",
-    "BNB":  "BNB",
-    "DOT":  "DOT",
-    "XRP":  "XRP",
-    "ADA":  "ADA",
-    "LINK": "LINK",
-    "SOL":  "SOL",
-}
+# ── Freqtrade Signale & Strategie ────────────────────────────────────────────
 
 def ft_session(cfg):
     """Gibt eine requests.Session mit JWT-Auth für Freqtrade zurück."""
@@ -284,17 +313,17 @@ def get_signals():
         open_trades = {t["pair"] for t in trades_resp.json()}
 
         signals = {}
-        for symbol, ft_base in FT_SYMBOL_MAP.items():
-            # Passendes Pair in der Whitelist suchen (z.B. BTC/USDT, BTC/EUR …)
-            pair = next((p for p in whitelist if p.startswith(ft_base + "/")), None)
+        for symbol in ft_whitelist_symbols(session, base_url):
+            pair = next((p for p in whitelist if p.startswith(symbol + "/")), None)
             if not pair:
                 signals[symbol] = "neutral"
                 continue
 
             # Analyzed dataframe für das Pair abrufen
+            timeframe = ft_timeframe(session, base_url)
             df_resp = session.get(
                 base_url + "/api/v1/analyzed_dataframe",
-                params={"pair": pair, "timeframe": "5m"},
+                params={"pair": pair, "timeframe": timeframe},
                 timeout=5,
             )
             if df_resp.status_code != 200:
@@ -325,6 +354,229 @@ def get_signals():
 
         return jsonify(signals)
 
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ── Strategie-Indikatoren ────────────────────────────────────────────────────
+
+# Felder die keine Indikatoren sind und ignoriert werden sollen
+IGNORED_COLS = {
+    "date","open","high","low","close","volume","enter_long","exit_long",
+    "enter_short","exit_short","buy","sell","enter_tag","exit_tag",
+    "buy_tag","sell_reason","trade_duration","current_profit",
+}
+
+def classify_indicator(col, value):
+    """
+    Versucht anhand von Spaltenname und Wert zu klassifizieren:
+    'buy' (grün), 'sell' (rot) oder 'neutral' (gelb).
+    """
+    if value is None:
+        return "neutral"
+    col_lower = col.lower()
+    try:
+        val = float(value)
+    except (TypeError, ValueError):
+        return "neutral"
+
+    # Boolesche Signale
+    if val == 1.0:
+        if any(x in col_lower for x in ["bull", "buy", "long", "up", "green", "above"]):
+            return "buy"
+        if any(x in col_lower for x in ["bear", "sell", "short", "down", "red", "below"]):
+            return "sell"
+        return "buy"  # generischer True-Wert → positiv
+    if val == 0.0:
+        return "neutral"
+
+    # RSI
+    if "rsi" in col_lower:
+        if val < 30:
+            return "buy"
+        if val > 70:
+            return "sell"
+        return "neutral"
+
+    # MACD
+    if "macd" in col_lower and "signal" not in col_lower and "hist" not in col_lower:
+        return "buy" if val > 0 else "sell"
+
+    return "neutral"
+
+@app.route("/api/strategy")
+def get_strategy():
+    """
+    Gibt pro Coin alle Strategie-Indikatoren der letzten Kerze zurück,
+    jeweils mit Ampelklassifizierung (buy/sell/neutral).
+    """
+    try:
+        cfg = load_config()
+        if "freqtrade" not in cfg:
+            return jsonify({"error": "Freqtrade nicht konfiguriert"}), 400
+
+        session, base_url = ft_session(cfg)
+        symbols = ft_whitelist_symbols(session, base_url)
+        timeframe = ft_timeframe(session, base_url)
+        whitelist_pairs = session.get(base_url + "/api/v1/whitelist", timeout=5).json().get("whitelist", [])
+        open_trades = {t["pair"] for t in session.get(base_url + "/api/v1/status", timeout=5).json()}
+
+        result = {}
+        for symbol in symbols:
+            pair = next((p for p in whitelist_pairs if p.startswith(symbol + "/")), None)
+            if not pair:
+                continue
+            try:
+                df_resp = session.get(
+                    base_url + "/api/v1/analyzed_dataframe",
+                    params={"pair": pair, "timeframe": timeframe},
+                    timeout=5,
+                )
+                df_data = df_resp.json()
+                columns = df_data.get("columns", [])
+                rows = df_data.get("data", [])
+
+                if not rows or not columns:
+                    result[symbol] = {"indicators": [], "signal": "neutral", "buy_count": 0, "total": 0}
+                    continue
+
+                last = dict(zip(columns, rows[-1]))
+                indicators = []
+                buy_count = 0
+
+                for col, val in last.items():
+                    if col in IGNORED_COLS:
+                        continue
+                    status = classify_indicator(col, val)
+                    indicators.append({"name": col, "value": val, "status": status})
+                    if status == "buy":
+                        buy_count += 1
+
+                # Gesamtsignal
+                enter_long = bool(last.get("enter_long", last.get("buy", 0)))
+                in_trade = pair in open_trades
+                signal = "buy" if (enter_long or in_trade) else "neutral"
+
+                result[symbol] = {
+                    "indicators": indicators,
+                    "signal": signal,
+                    "buy_count": buy_count,
+                    "total": len(indicators),
+                    "in_trade": pair in open_trades,
+                    "timeframe": timeframe,
+                }
+            except Exception as e:
+                result[symbol] = {"error": str(e)}
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ── RSS Newsfeed (Volltext) ───────────────────────────────────────────────────
+
+@app.route("/api/news/full")
+def get_news_full():
+    """Gibt Nachrichten mit Titel, Zusammenfassung und Link zurück."""
+    try:
+        cfg = load_config()
+        feeds = cfg.get("rss_feeds", [
+            "https://cointelegraph.com/rss",
+            "https://coindesk.com/arc/outboundfeeds/rss/",
+        ])
+        articles = []
+        for feed_url in feeds:
+            try:
+                feed = feedparser.parse(feed_url)
+                for entry in feed.entries[:10]:
+                    title = entry.get("title", "").strip()
+                    if not title:
+                        continue
+                    summary = entry.get("summary", entry.get("description", "")).strip()
+                    # HTML-Tags entfernen
+                    import re
+                    summary = re.sub(r"<[^>]+>", "", summary)[:400]
+                    articles.append({
+                        "title": title,
+                        "summary": summary,
+                        "link": entry.get("link", ""),
+                        "published": entry.get("published", ""),
+                    })
+            except Exception:
+                continue
+        return jsonify(articles)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ── KI-Zusammenfassung (Mammouth AI) ─────────────────────────────────────────
+
+_ai_cache = {"summary": None, "generated_at": 0}
+
+def generate_ai_summary():
+    """Generiert eine KI-Zusammenfassung des Kryptomarkts via Mammouth API."""
+    cfg = load_config()
+    ai_cfg = cfg.get("mammouth", {})
+    api_key = ai_cfg.get("api_key", "")
+    model = ai_cfg.get("model", "claude-sonnet-4-5")
+    api_url = ai_cfg.get("url", "https://api.mammouth.ai/v1/chat/completions")
+
+    if not api_key:
+        return "Mammouth API nicht konfiguriert."
+
+    # Coins aus Freqtrade holen
+    coins = list(KRAKEN_PAIR_MAP.keys())
+    if "freqtrade" in cfg:
+        try:
+            session, base_url = ft_session(cfg)
+            coins = ft_whitelist_symbols(session, base_url)
+        except Exception:
+            pass
+
+    prompt = (
+        f"Erstelle eine prägnante Zusammenfassung (max. 5 Sätze auf Deutsch) "
+        f"des aktuellen Kryptomarkts für folgende Coins: {', '.join(coins)}. "
+        f"Berücksichtige aktuelle Markttrends, Sentiment und relevante Entwicklungen. "
+        f"Keine Finanzberatung, nur sachliche Marktübersicht."
+    )
+
+    resp = requests.post(
+        api_url,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 400},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]["content"].strip()
+
+@app.route("/api/ai-summary")
+def get_ai_summary():
+    """Gibt die gecachte KI-Zusammenfassung zurück, generiert sie bei Bedarf neu."""
+    try:
+        cfg = load_config()
+        ai_cfg = cfg.get("mammouth", {})
+        refresh_hour = ai_cfg.get("refresh_hour", 6)  # Standard: 06:00 Uhr
+
+        now = time.time()
+        import datetime
+        current_hour = datetime.datetime.now().hour
+
+        # Neu generieren wenn: kein Cache, oder Refresh-Stunde erreicht und letzte Gen. > 23h her
+        needs_refresh = (
+            _ai_cache["summary"] is None or
+            (current_hour == refresh_hour and now - _ai_cache["generated_at"] > 23 * 3600)
+        )
+
+        if needs_refresh:
+            _ai_cache["summary"] = generate_ai_summary()
+            _ai_cache["generated_at"] = now
+
+        import datetime as dt
+        generated_at_str = dt.datetime.fromtimestamp(_ai_cache["generated_at"]).strftime("%d.%m.%Y %H:%M") if _ai_cache["generated_at"] else ""
+        return jsonify({
+            "summary": _ai_cache["summary"],
+            "generated_at": generated_at_str,
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

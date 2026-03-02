@@ -1,0 +1,27 @@
+Baue in die Kopflseite ein Menü ein, so dass 
+man zwischen verschiedenen Tabs umschalten kann.
+Folgende Tabs sollen vorhanden sein:
+
+"Home": gibt die aktuelle Seite wieder. Hier muss noch folgende Anpassung gemacht werden:
+Die Kursübersicht für die Coins soll dynamisch generiert werden, für jeden Coin den der Freqtrade Bot
+aktuell tradet. Du kannst diese Werte über die Freqtrade API abrufen.
+"Strategy": Gibt eine Übersicht der Strategie Indikatoren aus der Freqtrade
+API für die ausgewählten Coins wieder, d.h. Alle Indikatoren der Strategie 
+sollen ausgewertet werden und mit einem Ampelsystem gekennzeichnet werden, 
+ob diese erfüllt sind. Zum Beispiel, wenn ein Indikator ein Kaufsignal produziert,
+soll dahinter eine grüne Ampel zu sehen sein, bei Verkaufsignal eine rote Ampel,
+falls beides nicht erfüllt ist gelb. Außerdem soll ein Counter "x von y Signalen erfüllt"
+angezeigt werden, pro Coin, wobei der Counter zählt wie viele Signale von allen betrachteten 
+Signalen der Strategie für ein Kaufsignal erfüllt sind. Falls du die Strategie Daten nicht
+über die API abrufen kannst, kann ich dir die Strategie als Python Code zur Verfügung stellen.
+Diese Übersicht soll in Kacheln pro Coin dargestellt (aktuell 8 verschiedene, solltest du auch per 
+Freqtrade API abrufen können)
+"News": ein Tab in dem die Nachrichten aus den RSS Feed gut leserlich in einer scrollbaren
+Seite dargestellt werden. Mit Headline und Kurztext. Wenn man auf eine Nachricht clickt, soll diese 
+geöffnet werden und vollständig angezeigt werden. Es muss dementsprechend auf einen Button womit man 
+wieder zurück in die Übersicht gelangt. 
+"KI": Eine Übersicht, die eine Zusammenfassung, die das aktuelle Geschehen der Kryptomärkte beschreibt,
+enthält. Diese Zusammenfassung soll durch eine KI generiert werden. Dafür musst die Die Mammouth AI API integrieren,
+d.h. URL, API Key und welches Modell verwendet werden soll. Die Zusammenfassung soll beim Start des Containers generiert werden
+und alle 24 Stunden zu einer konfigurierbaren Uhrzeit neu generiert werden, so dass möglichst wenig API 
+Anfragen gestellt werden. Die Zusammenfassung soll für alle Coins erfolgen, die der Freqtrade Bot in seiner aktuellen Config tradet.
