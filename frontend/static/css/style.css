@@ -348,7 +348,6 @@ html, body {
   font-size: 1.35rem; font-weight: 300; color: var(--text);
   font-variant-numeric: tabular-nums;
 }
-.portfolio-label { font-size: 0.6rem; color: var(--text-muted); margin-top: 2px; }
 .portfolio-change { font-size: 0.72rem; font-weight: 600; margin-top: 3px; }
 .portfolio-change.up   { color: #16a34a; }
 .portfolio-change.down { color: #dc2626; }

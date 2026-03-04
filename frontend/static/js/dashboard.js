@@ -369,8 +369,7 @@ function updatePortfolioTotal() {
   }
   if (total <= 0) return;
   el.innerHTML = `
-    <div class="portfolio-value">${total.toLocaleString("de-DE", {minimumFractionDigits: 2, maximumFractionDigits: 2})} €</div>
-    <div class="portfolio-label">Gesamtvermögen</div>`;
+    <div class="portfolio-value">${total.toLocaleString("de-DE", {minimumFractionDigits: 2, maximumFractionDigits: 2})} €</div>`;
 }
 
 // ── Bot-Status ─────────────────────────────────────────────────────────────────
