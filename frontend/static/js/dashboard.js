@@ -348,3 +348,4 @@ intervals.weather   = setInterval(loadWeather,  30 * 60 * 1000);
 intervals.charts    = setInterval(() => loadCharts().then(() => loadSignals()),  5 * 60 * 1000);
 intervals.balances  = setInterval(loadBalances,  2 * 60 * 1000);
 intervals.ticker    = setInterval(loadTicker,   15 * 60 * 1000);
+intervals.strategy  = setInterval(() => { if (strategyLoaded) loadStrategy(); }, 30 * 60 * 1000);
