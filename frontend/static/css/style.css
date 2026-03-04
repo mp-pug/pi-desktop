@@ -28,40 +28,40 @@ html, body {
   height: var(--topbar-h);
   background: var(--topbar-bg);
   display: flex; flex-direction: column;
-  z-index: 100;
+  z-index: 100; overflow: hidden;
 }
 
 /* Zeile 1: Datum/Uhrzeit · Wetter · Bot-Status */
 .topbar-top {
+  height: 38px; flex-shrink: 0;
   display: flex; align-items: center;
-  padding: 0 14px; gap: 0; flex: 1; min-width: 0;
+  padding: 0 12px; gap: 12px;
   border-bottom: 1px solid #1f1f1f;
+  overflow: hidden;
 }
 
 .topbar-datetime {
-  display: flex; align-items: center; gap: 10px;
-  flex-shrink: 0; padding-right: 16px;
-  border-right: 1px solid #2a2a2a;
+  display: flex; flex-direction: column; justify-content: center;
+  flex-shrink: 0; gap: 1px; min-width: 0;
 }
 
-.time { font-size: 1.25rem; font-weight: 300; color: #fff; line-height: 1; white-space: nowrap; }
-.date { font-size: 0.64rem; color: #9ca3af; letter-spacing: 0.02em; white-space: nowrap; }
+.time { font-size: 1.05rem; font-weight: 300; color: #fff; line-height: 1.1; white-space: nowrap; }
+.date { font-size: 0.6rem; color: #9ca3af; white-space: nowrap; }
 
 .topbar-weather {
   display: flex; align-items: center; gap: 6px;
-  flex: 1; min-width: 0; padding: 0 14px;
-  border-right: 1px solid #2a2a2a;
+  flex: 1; min-width: 0; overflow: hidden;
 }
 .weather-icon { width: 22px; height: 22px; flex-shrink: 0; }
-.weather-temp { font-size: 0.95rem; font-weight: 400; color: #fff; white-space: nowrap; }
-.weather-details { display: flex; flex-direction: column; gap: 0; min-width: 0; }
-.weather-city { font-size: 0.65rem; color: #60a5fa; font-weight: 500; }
-.weather-desc { font-size: 0.62rem; color: #9ca3af; }
+.weather-temp { font-size: 0.9rem; font-weight: 400; color: #fff; white-space: nowrap; }
+.weather-details { display: flex; flex-direction: column; gap: 0; min-width: 0; overflow: hidden; }
+.weather-city { font-size: 0.62rem; color: #60a5fa; font-weight: 500; white-space: nowrap; }
+.weather-desc { font-size: 0.6rem; color: #9ca3af; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .weather-meta { display: none; }
 
 /* Zeile 2: Tab-Navigation */
 .tab-nav {
-  display: flex; flex-shrink: 0; height: 26px;
+  display: flex; height: 26px; flex-shrink: 0;
 }
 
 .tab-btn {
@@ -323,8 +323,8 @@ html, body {
 
 /* ── Bot-Status ───────────────────────────────────────────────────────────── */
 .bot-status {
-  display: flex; align-items: center; gap: 5px;
-  flex-shrink: 0; padding-left: 14px;
+  display: flex; align-items: center; gap: 4px;
+  flex-shrink: 0; white-space: nowrap;
 }
 .bot-status-dot {
   width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
