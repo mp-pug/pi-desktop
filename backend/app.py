@@ -922,6 +922,32 @@ def load_strategy_code(strategy_name=None):
     with open(fpath, "r") as f:
         return files[0], f.read(), False
 
+STRATEGY_DESC_CACHE_PATH = os.path.join(os.path.dirname(CONFIG_PATH), "strategy_desc_cache.json")
+
+
+def _load_desc_cache():
+    """Liest den persistenten Beschreibungs-Cache vom Volume."""
+    try:
+        with open(STRATEGY_DESC_CACHE_PATH, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def _save_desc_cache(entry):
+    """Schreibt den Beschreibungs-Cache auf das Volume."""
+    try:
+        with open(STRATEGY_DESC_CACHE_PATH, "w") as f:
+            json.dump(entry, f, indent=2)
+    except OSError as e:
+        logger.warning("Cache-Datei konnte nicht gespeichert werden: %s", e)
+
+
+def _strategy_hash(code):
+    """SHA256-Hash des Strategie-Codes."""
+    return hashlib.sha256(code.encode()).hexdigest()
+
+
 def generate_strategy_description():
     """Lässt die KI den Strategie-Code in verständliche Sprache übersetzen."""
     cfg = load_config()
@@ -958,7 +984,8 @@ def generate_strategy_description():
     )
     resp.raise_for_status()
     description = resp.json()["choices"][0]["message"]["content"].strip()
-    return {"description": description, "filename": fname}
+    return {"description": description, "filename": fname, "strategy_hash": _strategy_hash(code)}
+
 
 @app.route("/api/strategy-info")
 def get_strategy_info():
@@ -969,17 +996,51 @@ def get_strategy_info():
         return jsonify({"error": "Strategie-Beschreibung wird noch generiert, bitte kurz warten."}), 503
     return jsonify(description)
 
+
 def init_strategy_description():
-    """Wird beim Start des Containers aufgerufen – generiert die Beschreibung einmalig."""
+    """
+    Wird beim Start des Containers aufgerufen.
+    Generiert die KI-Beschreibung nur neu, wenn sich der Strategie-Code
+    seit der letzten Generierung geändert hat (Hash-Vergleich).
+    """
     try:
-        logger.info("Generiere Strategie-Beschreibung im Hintergrund...")
+        _, code, _ = load_strategy_code()
+        if not code:
+            with _strategy_lock:
+                _strategy_info_cache["description"] = {
+                    "error": "Keine Strategie-Datei im /strategies Verzeichnis gefunden."
+                }
+            return
+
+        current_hash = _strategy_hash(code)
+        cached = _load_desc_cache()
+
+        if cached.get("strategy_hash") == current_hash and cached.get("description"):
+            logger.info("Strategie unverändert – nutze gecachte Beschreibung (%s)", cached.get("filename"))
+            with _strategy_lock:
+                _strategy_info_cache["description"] = {
+                    "description": cached["description"],
+                    "filename":    cached.get("filename"),
+                    "strategy_hash": current_hash,
+                }
+            return
+
+        logger.info("Strategie geändert oder kein Cache – generiere neue Beschreibung...")
         result = generate_strategy_description()
         with _strategy_lock:
             _strategy_info_cache["description"] = result
+
         if "error" not in result:
-            logger.info("Strategie-Beschreibung generiert: %s", result.get("filename"))
+            _save_desc_cache({
+                "strategy_hash": current_hash,
+                "filename":      result.get("filename"),
+                "description":   result["description"],
+                "generated_at":  datetime.datetime.now().isoformat(),
+            })
+            logger.info("Strategie-Beschreibung generiert und gecacht: %s", result.get("filename"))
         else:
             logger.error("Strategie-Beschreibung Fehler: %s", result["error"])
+
     except Exception as e:
         logger.exception("Strategie-Beschreibung Exception")
         with _strategy_lock:
