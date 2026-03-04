@@ -299,7 +299,7 @@ def get_charts():
             try:
                 r = requests.get(
                     "https://api.kraken.com/0/public/OHLC",
-                    params={"pair": kraken_pair, "interval": 60},
+                    params={"pair": kraken_pair, "interval": 240},
                     timeout=10,
                 )
                 data = r.json()
