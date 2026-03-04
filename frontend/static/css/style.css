@@ -267,3 +267,35 @@ html, body {
 /* ── Hilfsstile ───────────────────────────────────────────────────────────── */
 .loading { color: var(--text-muted); font-size: 0.78rem; }
 .error   { color: #e05c5c; font-size: 0.78rem; }
+
+/* ── Markdown-Rendering (KI-Analyse & Strategie-Info) ─────────────────────── */
+.ai-summary h1, .ai-summary h2, .ai-summary h3,
+.strategy-infobox-content h1, .strategy-infobox-content h2, .strategy-infobox-content h3 {
+  font-size: 0.95rem; font-weight: 700; color: var(--text);
+  margin: 0.9em 0 0.3em;
+}
+.ai-summary h1, .strategy-infobox-content h1 { font-size: 1.05rem; }
+
+.ai-summary p, .strategy-infobox-content p {
+  margin: 0.4em 0; line-height: 1.55;
+}
+.ai-summary ul, .ai-summary ol,
+.strategy-infobox-content ul, .strategy-infobox-content ol {
+  padding-left: 1.4em; margin: 0.3em 0;
+}
+.ai-summary li, .strategy-infobox-content li {
+  margin: 0.15em 0; line-height: 1.5;
+}
+.ai-summary strong, .strategy-infobox-content strong {
+  font-weight: 700; color: var(--text);
+}
+.ai-summary em, .strategy-infobox-content em {
+  font-style: italic;
+}
+.ai-summary code, .strategy-infobox-content code {
+  background: #eef0f4; border-radius: 3px;
+  padding: 0.1em 0.35em; font-size: 0.82em; font-family: monospace;
+}
+.ai-summary hr, .strategy-infobox-content hr {
+  border: none; border-top: 1px solid var(--border); margin: 0.8em 0;
+}

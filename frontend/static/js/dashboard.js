@@ -177,11 +177,7 @@ async function loadStrategyInfo() {
     if (data.filename) {
       document.getElementById("strategy-name").textContent = data.filename.replace(".py","");
     }
-    const html = escapeHtml(data.description)
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\n\n/g, "</p><p>")
-      .replace(/\n/g, "<br>");
-    el.innerHTML = `<p>${html}</p>`;
+    el.innerHTML = marked.parse(data.description);
   } catch(e) {
     el.innerHTML = `<span class="error">Nicht verfügbar: ${e.message}</span>`;
     strategyInfoLoaded = false;
@@ -286,12 +282,7 @@ async function loadAI() {
   try {
     const data = await fetchJSON(`${API}/api/ai-summary`);
     if (data.error) { el.innerHTML = `<span class="error">${escapeHtml(data.error)}</span>`; return; }
-    // Markdown **SYMBOL** → <strong>, Zeilenumbrüche → <br> / Absätze
-    const html = escapeHtml(data.summary)
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\n\n/g, "</p><p>")
-      .replace(/\n/g, "<br>");
-    el.innerHTML = `<p>${html}</p>`;
+    el.innerHTML = marked.parse(data.summary);
     ts.textContent = data.generated_at ? `Stand: ${data.generated_at}` : "";
   } catch(e) {
     el.innerHTML = `<span class="error">KI-Zusammenfassung nicht verfügbar: ${e.message}</span>`;
