@@ -26,6 +26,7 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
     document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
     // Lazy-load beim ersten Öffnen
     if (btn.dataset.tab === "strategy" && !strategyLoaded) loadStrategy();
+    if (btn.dataset.tab === "trades"   && !tradesLoaded)   loadTrades();
     if (btn.dataset.tab === "news"     && !newsLoaded)     loadNewsTab();
     if (btn.dataset.tab === "ai"       && !aiLoaded)       loadAI();
   });
@@ -91,34 +92,6 @@ function sparklinePath(values, w, h) {
 // Guard gegen Race Condition: verhindert dass loadSignals läuft während Charts neu gerendert werden
 let chartsRendering = false;
 
-async function loadCharts() {
-  const section = document.getElementById("charts-section");
-  chartsRendering = true;
-  try {
-    const data = await fetchJSON(`${API}/api/charts`);
-    section.innerHTML = Object.entries(data).map(([symbol, info]) => {
-      if (info.error) return `<div class="chart-card" data-symbol="${symbol}"><div class="chart-symbol">${symbol}</div><div class="error">-</div></div>`;
-      const up = info.change_pct >= 0;
-      const path = sparklinePath(info.sparkline, 100, 26);
-      const color = up ? "#16a34a" : "#dc2626";
-      return `<div class="chart-card" data-symbol="${escapeHtml(symbol)}">
-        <div class="chart-header">
-          <span class="chart-symbol">${escapeHtml(symbol)}</span>
-          <span class="chart-change ${up?"up":"down"}">${up?"+":""}${info.change_pct.toFixed(2)}%</span>
-        </div>
-        <div class="chart-price">${formatPrice(info.price)} €</div>
-        <svg class="chart-sparkline" viewBox="0 0 100 26" preserveAspectRatio="none">
-          <path d="${path}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
-        </svg>
-      </div>`;
-    }).join("");
-  } catch(e) {
-    section.innerHTML = `<span class="error">Kurse nicht verfügbar: ${e.message}</span>`;
-  } finally {
-    chartsRendering = false;
-  }
-}
-
 // ── Signale ───────────────────────────────────────────────────────────────────
 async function loadSignals() {
   // Race Condition vermeiden: nicht während Charts neu gerendert werden
@@ -147,11 +120,6 @@ function renderBalances(id, data) {
       <span class="balance-symbol">${escapeHtml(s)}</span>
       <span class="balance-amount">${formatAmount(a)}</span>
     </div>`).join("");
-}
-
-async function loadBalances() {
-  try { renderBalances("kraken-balances",  await fetchJSON(`${API}/api/kraken`));  } catch(e) { document.getElementById("kraken-balances").innerHTML  = `<span class="error">Nicht verfügbar</span>`; }
-  try { renderBalances("bitvavo-balances", await fetchJSON(`${API}/api/bitvavo`)); } catch(e) { document.getElementById("bitvavo-balances").innerHTML = `<span class="error">Nicht verfügbar</span>`; }
 }
 
 // ── Strategie Info-Button ─────────────────────────────────────────────────────
@@ -333,6 +301,152 @@ function showNextHeadline() {
   }, 800);
 }
 
+// ── Portfolio Gesamtwert ───────────────────────────────────────────────────────
+// Speichert zuletzt geladene Kurse und Balances für die Berechnung
+let _chartPrices = {};
+let _balanceAmounts = {};
+
+const STABLE_COINS = new Set(["EUR","USDT","USDC","BUSD","DAI","TUSD"]);
+
+async function loadCharts() {
+  const section = document.getElementById("charts-section");
+  chartsRendering = true;
+  try {
+    const data = await fetchJSON(`${API}/api/charts`);
+    _chartPrices = {};
+    section.innerHTML = Object.entries(data).map(([symbol, info]) => {
+      if (info.error) return `<div class="chart-card" data-symbol="${symbol}"><div class="chart-symbol">${symbol}</div><div class="error">-</div></div>`;
+      _chartPrices[symbol] = info.price;
+      const up = info.change_pct >= 0;
+      const path = sparklinePath(info.sparkline, 100, 26);
+      const color = up ? "#16a34a" : "#dc2626";
+      return `<div class="chart-card" data-symbol="${escapeHtml(symbol)}">
+        <div class="chart-header">
+          <span class="chart-symbol">${escapeHtml(symbol)}</span>
+          <span class="chart-change ${up?"up":"down"}">${up?"+":""}${info.change_pct.toFixed(2)}%</span>
+        </div>
+        <div class="chart-price">${formatPrice(info.price)} €</div>
+        <svg class="chart-sparkline" viewBox="0 0 100 26" preserveAspectRatio="none">
+          <path d="${path}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+        </svg>
+      </div>`;
+    }).join("");
+    updatePortfolioTotal();
+  } catch(e) {
+    section.innerHTML = `<span class="error">Kurse nicht verfügbar: ${e.message}</span>`;
+  } finally {
+    chartsRendering = false;
+  }
+}
+
+async function loadBalances() {
+  try {
+    const kraken  = await fetchJSON(`${API}/api/kraken`);
+    const bitvavo = await fetchJSON(`${API}/api/bitvavo`);
+    renderBalances("kraken-balances",  kraken);
+    renderBalances("bitvavo-balances", bitvavo);
+    _balanceAmounts = {};
+    for (const [s, a] of Object.entries(kraken.error  ? {} : kraken))  _balanceAmounts[s] = (_balanceAmounts[s] || 0) + parseFloat(a);
+    for (const [s, a] of Object.entries(bitvavo.error ? {} : bitvavo)) _balanceAmounts[s] = (_balanceAmounts[s] || 0) + parseFloat(a);
+    updatePortfolioTotal();
+  } catch(e) {
+    document.getElementById("kraken-balances").innerHTML  = `<span class="error">Nicht verfügbar</span>`;
+    document.getElementById("bitvavo-balances").innerHTML = `<span class="error">Nicht verfügbar</span>`;
+  }
+}
+
+function updatePortfolioTotal() {
+  const el = document.getElementById("portfolio-total");
+  if (!el) return;
+  if (!Object.keys(_balanceAmounts).length || !Object.keys(_chartPrices).length) return;
+
+  let total = 0;
+  for (const [coin, amount] of Object.entries(_balanceAmounts)) {
+    if (STABLE_COINS.has(coin)) { total += amount; continue; }
+    // Suche passenden Kurs: z.B. BTC → BTC/EUR
+    const key = Object.keys(_chartPrices).find(k => k.startsWith(coin + "/") || k === coin);
+    if (key) total += amount * _chartPrices[key];
+  }
+  if (total <= 0) return;
+  el.innerHTML = `
+    <div class="portfolio-value">${total.toLocaleString("de-DE", {minimumFractionDigits: 2, maximumFractionDigits: 2})} €</div>
+    <div class="portfolio-label">Gesamtvermögen</div>`;
+}
+
+// ── Bot-Status ─────────────────────────────────────────────────────────────────
+async function loadBotStatus() {
+  const el = document.getElementById("bot-status");
+  try {
+    const d = await fetchJSON(`${API}/api/bot-status`);
+    if (!d.available) {
+      el.innerHTML = `<span class="bot-status-dot unknown"></span><span class="bot-status-text">Bot offline</span>`;
+      return;
+    }
+    const running = d.state === "running";
+    const dotClass = running ? "running" : "stopped";
+    const stateText = running ? "Läuft" : (d.state || "Gestoppt");
+    el.innerHTML = `
+      <span class="bot-status-dot ${dotClass}"></span>
+      <span class="bot-status-text">${escapeHtml(stateText)}</span>
+      ${d.open_trades != null ? `<span class="bot-status-trades">${d.open_trades}/${d.max_trades || "?"} Trades</span>` : ""}`;
+  } catch(e) {
+    el.innerHTML = `<span class="bot-status-dot unknown"></span><span class="bot-status-text">–</span>`;
+  }
+}
+
+// ── Trades-Tab ─────────────────────────────────────────────────────────────────
+let tradesLoaded = false;
+
+function formatTradeDate(s) {
+  if (!s) return "";
+  const d = new Date(s.endsWith("Z") ? s : s + "Z");
+  return d.toLocaleDateString("de-DE", {day:"2-digit",month:"2-digit"}) + " " +
+         d.toLocaleTimeString("de-DE", {hour:"2-digit",minute:"2-digit"});
+}
+
+function renderTrade(t) {
+  const pct = typeof t.profit_pct === "number" ? t.profit_pct : null;
+  const abs = typeof t.profit_abs === "number" ? t.profit_abs : null;
+  const isPos = pct != null && pct >= 0;
+  const cardClass = pct == null ? "" : (isPos ? "profit-pos" : "profit-neg");
+  const profitClass = pct == null ? "" : (isPos ? "pos" : "neg");
+  const profitStr = pct != null
+    ? `${isPos?"+":""}${pct.toFixed(2)}% (${abs != null ? (isPos?"+":"") + abs.toFixed(2) + " €" : ""})`
+    : "offen";
+  const buyRate  = typeof t.open_rate  === "number" ? formatPrice(t.open_rate)  : "–";
+  const sellRate = typeof t.close_rate === "number" ? formatPrice(t.close_rate) : (typeof t.current_rate === "number" ? formatPrice(t.current_rate) : "–");
+  const openDate  = formatTradeDate(t.open_date);
+  const closeDate = t.close_date ? formatTradeDate(t.close_date) : "";
+  return `<div class="trade-card ${cardClass}">
+    <div class="trade-header">
+      <span class="trade-pair">${escapeHtml(t.pair || "–")}</span>
+      <span class="trade-profit ${profitClass}">${profitStr}</span>
+    </div>
+    <div class="trade-meta">Kauf: ${buyRate} € → ${t.is_open ? "Aktuell" : "Verkauf"}: ${sellRate} €</div>
+    <div class="trade-dates">${openDate}${closeDate ? " · " + closeDate : ""}</div>
+  </div>`;
+}
+
+async function loadTrades() {
+  tradesLoaded = true;
+  const openEl   = document.getElementById("open-trades-list");
+  const closedEl = document.getElementById("closed-trades-list");
+  try {
+    const data = await fetchJSON(`${API}/api/trades`);
+    if (data.error) {
+      openEl.innerHTML = closedEl.innerHTML = `<span class="error">${escapeHtml(data.error)}</span>`;
+      return;
+    }
+    const open   = data.open   || [];
+    const closed = data.closed || [];
+    openEl.innerHTML   = open.length   ? open.map(renderTrade).join("")   : `<span class="loading">Keine offenen Trades</span>`;
+    closedEl.innerHTML = closed.length ? closed.map(renderTrade).join("") : `<span class="loading">Keine abgeschlossenen Trades</span>`;
+  } catch(e) {
+    openEl.innerHTML = closedEl.innerHTML = `<span class="error">Nicht verfügbar: ${e.message}</span>`;
+    tradesLoaded = false;
+  }
+}
+
 // ── Start & Intervalle ────────────────────────────────────────────────────────
 // Interval-IDs gespeichert, damit sie ggf. bereinigt werden können
 const intervals = {};
@@ -341,11 +455,14 @@ loadWeather();
 loadCharts().then(() => loadSignals());
 loadBalances();
 loadTicker();
+loadBotStatus();
 
 // Signals werden nach Charts geladen (chain) – kein separater Interval nötig,
 // um Race Conditions beim DOM-Neuaufbau zu vermeiden.
-intervals.weather   = setInterval(loadWeather,  30 * 60 * 1000);
-intervals.charts    = setInterval(() => loadCharts().then(() => loadSignals()),  5 * 60 * 1000);
-intervals.balances  = setInterval(loadBalances,  2 * 60 * 1000);
-intervals.ticker    = setInterval(loadTicker,   15 * 60 * 1000);
-intervals.strategy  = setInterval(() => { if (strategyLoaded) loadStrategy(); }, 30 * 60 * 1000);
+intervals.weather    = setInterval(loadWeather,   30 * 60 * 1000);
+intervals.charts     = setInterval(() => loadCharts().then(() => loadSignals()),  5 * 60 * 1000);
+intervals.balances   = setInterval(loadBalances,   2 * 60 * 1000);
+intervals.ticker     = setInterval(loadTicker,    15 * 60 * 1000);
+intervals.strategy   = setInterval(() => { if (strategyLoaded) loadStrategy(); }, 30 * 60 * 1000);
+intervals.botStatus  = setInterval(loadBotStatus,  2 * 60 * 1000);
+intervals.trades     = setInterval(() => { if (tradesLoaded) loadTrades(); },     2 * 60 * 1000);
