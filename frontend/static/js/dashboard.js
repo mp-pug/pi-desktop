@@ -190,41 +190,53 @@ let strategyLoaded = false;
 async function loadStrategy() {
   strategyLoaded = true;
   const grid = document.getElementById("strategy-grid");
+  const warningEl = document.getElementById("strategy-warning");
   try {
     const data = await fetchJSON(`${API}/api/strategy`);
     if (data.error) { grid.innerHTML = `<span class="error">${escapeHtml(data.error)}</span>`; return; }
-    grid.innerHTML = Object.entries(data).map(([symbol, info]) => {
-      if (info.error) return `<div class="strategy-card">
-        <div class="strategy-card-header"><span class="strategy-symbol">${symbol}</span></div>
-        <div class="error">${escapeHtml(info.error)}</div>
-      </div>`;
 
-      if (!info.indicators || info.indicators.length === 0) return `<div class="strategy-card">
-        <div class="strategy-card-header">
-          <span class="strategy-symbol">${symbol}</span>
-          <span class="strategy-signal neutral">Neutral</span>
-        </div>
-        <div class="strategy-no-data">Noch keine Daten (warte auf Kerzenschluss)</div>
-      </div>`;
+    // Strategie-Mismatch-Warnung anzeigen
+    if (data._warning) {
+      warningEl.textContent = `⚠ ${data._warning}`;
+      warningEl.style.display = "block";
+    } else {
+      warningEl.style.display = "none";
+    }
 
-      const sig = info.signal;
-      const sigLabel = sig === "buy" ? "Kaufsignal" : sig === "sell" ? "Verkaufsignal" : "Neutral";
-      const indicators = info.indicators.map(ind => `
-        <div class="indicator-row">
-          <span class="indicator-name" title="${escapeHtml(ind.name)}">${escapeHtml(ind.name)}</span>
-          <span class="indicator-value">${typeof ind.value === "number" ? ind.value.toFixed(4) : escapeHtml(String(ind.value))}</span>
-          <div class="indicator-light ${ind.status}"></div>
-        </div>`).join("");
+    grid.innerHTML = Object.entries(data)
+      .filter(([symbol]) => !symbol.startsWith("_"))
+      .map(([symbol, info]) => {
+        if (info.error) return `<div class="strategy-card">
+          <div class="strategy-card-header"><span class="strategy-symbol">${symbol}</span></div>
+          <div class="error">${escapeHtml(info.error)}</div>
+        </div>`;
 
-      return `<div class="strategy-card">
-        <div class="strategy-card-header">
-          <span class="strategy-symbol">${escapeHtml(symbol)}</span>
-          <span class="strategy-signal ${sig}">${sigLabel}</span>
-        </div>
-        <div class="strategy-counter">${info.buy_count} von ${info.total} Signalen erfüllt${info.in_trade ? " · Position offen" : ""}</div>
-        <div class="indicator-list">${indicators}</div>
-      </div>`;
-    }).join("");
+        if (!info.indicators || info.indicators.length === 0) return `<div class="strategy-card">
+          <div class="strategy-card-header">
+            <span class="strategy-symbol">${symbol}</span>
+            <span class="strategy-signal neutral">Neutral</span>
+          </div>
+          <div class="strategy-no-data">Noch keine Daten (warte auf Kerzenschluss)</div>
+        </div>`;
+
+        const sig = info.signal;
+        const sigLabel = sig === "buy" ? "Kaufsignal" : sig === "sell" ? "Verkaufsignal" : "Neutral";
+        const indicators = info.indicators.map(ind => `
+          <div class="indicator-row">
+            <span class="indicator-name" title="${escapeHtml(ind.name)}">${escapeHtml(ind.name)}</span>
+            <span class="indicator-value">${typeof ind.value === "number" ? ind.value.toFixed(4) : escapeHtml(String(ind.value))}</span>
+            <div class="indicator-light ${ind.status}"></div>
+          </div>`).join("");
+
+        return `<div class="strategy-card">
+          <div class="strategy-card-header">
+            <span class="strategy-symbol">${escapeHtml(symbol)}</span>
+            <span class="strategy-signal ${sig}">${sigLabel}</span>
+          </div>
+          <div class="strategy-counter">${info.buy_count} von ${info.total} Signalen erfüllt${info.in_trade ? " · Position offen" : ""}</div>
+          <div class="indicator-list">${indicators}</div>
+        </div>`;
+      }).join("");
   } catch(e) {
     grid.innerHTML = `<span class="error">Strategie-Daten nicht verfügbar: ${e.message}</span>`;
   }

@@ -242,11 +242,19 @@ def ft_whitelist_symbols(session, base_url):
     # "BTC/EUR" → "BTC"
     return [p.split("/")[0] for p in pairs]
 
-def ft_timeframe(session, base_url):
-    """Gibt den konfigurierten Timeframe des Bots zurück."""
+def ft_show_config(session, base_url):
+    """Gibt die show_config-Antwort von Freqtrade zurück."""
     resp = session.get(base_url + "/api/v1/show_config", timeout=5)
     resp.raise_for_status()
-    return resp.json().get("timeframe", "1h")
+    return resp.json()
+
+def ft_timeframe(session, base_url):
+    """Gibt den konfigurierten Timeframe des Bots zurück."""
+    return ft_show_config(session, base_url).get("timeframe", "1h")
+
+def ft_strategy_name(session, base_url):
+    """Gibt den Namen der aktiven Freqtrade-Strategie zurück."""
+    return ft_show_config(session, base_url).get("strategy")
 
 @app.route("/api/whitelist")
 def get_whitelist():
@@ -620,17 +628,28 @@ def get_strategy():
         if "freqtrade" not in cfg:
             return jsonify({"error": "Freqtrade nicht konfiguriert"}), 400
 
-        # Strategie-Code laden und Entry-Bedingungen per AST parsen
-        _, strategy_code = load_strategy_code()
-        entry_conditions = parse_entry_conditions(strategy_code) if strategy_code else []
-        if not entry_conditions:
-            logger.warning("Keine Entry-Bedingungen aus Strategie geparst – Fallback auf generische Klassifizierung")
-
         session, base_url = ft_session(cfg)
-        symbols = ft_whitelist_symbols(session, base_url)
-        timeframe = ft_timeframe(session, base_url)
+        ft_config   = ft_show_config(session, base_url)
+        timeframe   = ft_config.get("timeframe", "1h")
+        ft_strat    = ft_config.get("strategy")
+        symbols     = ft_whitelist_symbols(session, base_url)
         whitelist_pairs = session.get(base_url + "/api/v1/whitelist", timeout=5).json().get("whitelist", [])
         open_trades = {t["pair"] for t in session.get(base_url + "/api/v1/status", timeout=5).json()}
+
+        # Lokale Strategie-Datei laden und mit Freqtrade-Strategie abgleichen
+        local_fname, strategy_code, mismatch = load_strategy_code(ft_strat)
+        entry_conditions = parse_entry_conditions(strategy_code) if strategy_code else []
+
+        strategy_warning = None
+        if mismatch:
+            local_class = local_fname.replace(".py", "") if local_fname else "—"
+            strategy_warning = (
+                f"Lokale Strategie '{local_class}' entspricht nicht der "
+                f"Freqtrade-Strategie '{ft_strat}'"
+            )
+            logger.warning("Strategie-Mismatch: lokal='%s', Freqtrade='%s'", local_class, ft_strat)
+        elif not entry_conditions:
+            logger.warning("Keine Entry-Bedingungen aus Strategie geparst – Fallback auf generische Klassifizierung")
 
         result = {}
         for symbol in symbols:
@@ -716,7 +735,10 @@ def get_strategy():
                 logger.warning("Strategie-Fehler für %s: %s", symbol, e)
                 result[symbol] = {"error": str(e)}
 
-        logger.info("Strategie-Daten geladen: %d Coins", len(result))
+        if strategy_warning:
+            result["_warning"] = strategy_warning
+        logger.info("Strategie-Daten geladen: %d Coins, Strategie: %s%s",
+                    len(result), ft_strat, " [MISMATCH]" if mismatch else "")
         return jsonify(result)
     except Exception as e:
         logger.exception("Fehler in get_strategy")
@@ -855,16 +877,50 @@ def get_ai_summary():
 
 STRATEGIES_PATH = os.environ.get("STRATEGIES_PATH", "/strategies")
 
-def load_strategy_code():
-    """Liest die erste .py-Datei aus dem strategies-Verzeichnis."""
+def load_strategy_code(strategy_name=None):
+    """
+    Liest die passende .py-Datei aus dem strategies-Verzeichnis.
+    Wenn strategy_name angegeben: sucht zuerst nach '{name}.py',
+    dann nach einer Datei die 'class {name}' enthält.
+    Rückgabe: (fname, code, mismatch: bool)
+    mismatch=True bedeutet: gesuchte Strategie nicht gefunden.
+    """
     if not os.path.isdir(STRATEGIES_PATH):
-        return None, None
-    for fname in os.listdir(STRATEGIES_PATH):
-        if fname.endswith(".py"):
-            fpath = os.path.join(STRATEGIES_PATH, fname)
+        return None, None, False
+
+    files = [f for f in os.listdir(STRATEGIES_PATH) if f.endswith(".py")]
+    if not files:
+        return None, None, False
+
+    if strategy_name:
+        # 1. Dateiname-Match: StrongTrend_Retest_4H.py
+        exact = strategy_name + ".py"
+        if exact in files:
+            fpath = os.path.join(STRATEGIES_PATH, exact)
             with open(fpath, "r") as f:
-                return fname, f.read()
-    return None, None
+                return exact, f.read(), False
+
+        # 2. Klassen-Match: suche 'class StrategyName' in allen Dateien
+        for fname in files:
+            fpath = os.path.join(STRATEGIES_PATH, fname)
+            try:
+                with open(fpath, "r") as f:
+                    code = f.read()
+                if f"class {strategy_name}" in code:
+                    return fname, code, False
+            except OSError:
+                continue
+
+        # Kein Match gefunden → Mismatch-Warnung
+        logger.warning(
+            "Strategie '%s' (Freqtrade) hat kein passendes .py-File im strategies-Ordner", strategy_name
+        )
+        return files[0], open(os.path.join(STRATEGIES_PATH, files[0])).read(), True
+
+    # Kein Name angegeben → erste Datei nehmen
+    fpath = os.path.join(STRATEGIES_PATH, files[0])
+    with open(fpath, "r") as f:
+        return files[0], f.read(), False
 
 def generate_strategy_description():
     """Lässt die KI den Strategie-Code in verständliche Sprache übersetzen."""
@@ -877,7 +933,7 @@ def generate_strategy_description():
     if not api_key:
         return {"error": "Mammouth API nicht konfiguriert."}
 
-    fname, code = load_strategy_code()
+    fname, code, _ = load_strategy_code()
     if not code:
         return {"error": "Keine Strategie-Datei im /strategies Verzeichnis gefunden."}
 
