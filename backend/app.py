@@ -1,5 +1,6 @@
 import os
 import re
+import ast
 import json
 import hashlib
 import hmac
@@ -412,62 +413,218 @@ def get_signals():
         return jsonify({"error": str(e)}), 500
 
 
-# ── Strategie-Indikatoren ────────────────────────────────────────────────────
+# ── Strategie-Bedingungsparser (AST) ─────────────────────────────────────────
 
-# Felder die keine Indikatoren sind und ignoriert werden sollen
-IGNORED_COLS = {
-    "date","open","high","low","close","volume","enter_long","exit_long",
-    "enter_short","exit_short","buy","sell","enter_tag","exit_tag",
-    "buy_tag","sell_reason","trade_duration","current_profit",
-}
+def _col_name(node):
+    """Extrahiert den Spaltennamen aus einem dataframe['col']-Knoten."""
+    if isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant):
+        return node.slice.value
+    return None
 
-def classify_indicator(col, value):
+
+def _eval_node(node, rows, local_vars, shift=0):
     """
-    Versucht anhand von Spaltenname und Wert zu klassifizieren:
-    'buy' (grün), 'sell' (rot) oder 'neutral' (gelb).
+    Wertet einen AST-Knoten gegen die Datenzeilen aus.
+    rows: Liste von Row-Dicts (älteste zuerst), rows[-1] = aktuelle Kerze.
+    shift: wie viele Kerzen zurück (0 = aktuell, 1 = vorherige).
+    Rückgabe: (wert, erfüllt: True | False | None)
     """
-    if value is None:
-        return "neutral"
-    col_lower = col.lower()
     try:
-        val = float(value)
-    except (TypeError, ValueError):
-        return "neutral"
+        row = rows[-(1 + shift)]
+    except IndexError:
+        return None, None
 
-    # Boolesche Signale
-    if val == 1.0:
-        if any(x in col_lower for x in ["bull", "buy", "long", "up", "green", "above"]):
-            return "buy"
-        if any(x in col_lower for x in ["bear", "sell", "short", "down", "red", "below"]):
-            return "sell"
-        return "buy"  # generischer True-Wert → positiv
-    if val == 0.0:
-        return "neutral"
+    # ── Vergleich (col > col, col > 22, …) ──────────────────────────────────
+    if isinstance(node, ast.Compare):
+        left_val, _ = _eval_node(node.left, rows, local_vars, shift)
+        if left_val is None:
+            return None, None
+        for op, comp in zip(node.ops, node.comparators):
+            right_val, _ = _eval_node(comp, rows, local_vars, shift)
+            if right_val is None:
+                return None, None
+            try:
+                lf, rf = float(left_val), float(right_val)
+            except (TypeError, ValueError):
+                return None, None
+            if   isinstance(op, ast.Gt):  met = lf > rf
+            elif isinstance(op, ast.Lt):  met = lf < rf
+            elif isinstance(op, ast.GtE): met = lf >= rf
+            elif isinstance(op, ast.LtE): met = lf <= rf
+            elif isinstance(op, ast.Eq):  met = lf == rf
+            elif isinstance(op, ast.NotEq): met = lf != rf
+            else: return None, None
+            if not met:
+                return False, False
+            left_val = right_val
+        return True, True
 
-    # RSI
-    if "rsi" in col_lower:
-        if val < 30:
-            return "buy"
-        if val > 70:
-            return "sell"
-        return "neutral"
+    # ── Pandas-& (BinOp mit BitAnd / BitOr) ─────────────────────────────────
+    if isinstance(node, ast.BinOp):
+        lv, lm = _eval_node(node.left,  rows, local_vars, shift)
+        rv, rm = _eval_node(node.right, rows, local_vars, shift)
+        if isinstance(node.op, ast.BitAnd):
+            if lm is False or rm is False: return False, False
+            if lm is True  and rm is True:  return True, True
+            return None, None
+        if isinstance(node.op, ast.BitOr):
+            if lm is True  or rm is True:   return True, True
+            if lm is False and rm is False:  return False, False
+            return None, None
 
-    # MACD
-    if "macd" in col_lower and "signal" not in col_lower and "hist" not in col_lower:
-        return "buy" if val > 0 else "sell"
+    # ── dataframe['col'] → Wert aus der Zeile ────────────────────────────────
+    if isinstance(node, ast.Subscript):
+        col = _col_name(node)
+        if col and col in row:
+            try:
+                fval = float(row[col])
+                return fval, bool(fval)
+            except (TypeError, ValueError):
+                return row[col], bool(row[col]) if row[col] is not None else (None, None)
+        return None, None
 
-    return "neutral"
+    # ── Literal (22, 0.5, …) ─────────────────────────────────────────────────
+    if isinstance(node, ast.Constant):
+        return node.value, None
+
+    # ── Lokale Variable → auflösen ───────────────────────────────────────────
+    if isinstance(node, ast.Name) and node.id in local_vars:
+        return _eval_node(local_vars[node.id], rows, local_vars, shift)
+
+    # ── .shift(n) → Auswertung mit erhöhtem Shift ────────────────────────────
+    if (isinstance(node, ast.Call) and
+            isinstance(node.func, ast.Attribute) and
+            node.func.attr == "shift" and
+            node.args and isinstance(node.args[0], ast.Constant)):
+        n = int(node.args[0].value)
+        return _eval_node(node.func.value, rows, local_vars, shift + n)
+
+    # ── Negation ─────────────────────────────────────────────────────────────
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        _, met = _eval_node(node.operand, rows, local_vars, shift)
+        return (not met, not met) if met is not None else (None, None)
+
+    return None, None
+
+
+def _display_value(node, rows, local_vars):
+    """Gibt den anzuzeigenden Wert für die linke Seite einer Bedingung zurück."""
+    if isinstance(node, ast.Compare):
+        val, _ = _eval_node(node.left, rows, local_vars, 0)
+        try:
+            return round(float(val), 4) if val is not None else None
+        except (TypeError, ValueError):
+            return val
+    # Lokale Variable oder Shift → boolean anzeigen
+    _, met = _eval_node(node, rows, local_vars, 0)
+    return met
+
+
+def _condition_label(node, local_vars, shift=0):
+    """Erstellt einen lesbaren Label für eine Bedingung."""
+    suffix = f" (Kerze -{shift})" if shift > 0 else ""
+
+    # Lokale Variable → Namen verwenden, ggf. mit Shift-Hinweis
+    if isinstance(node, ast.Name) and node.id in local_vars:
+        return f"{node.id}{suffix}"
+
+    # .shift(n) → rekursiv mit erhöhtem Shift
+    if (isinstance(node, ast.Call) and
+            isinstance(node.func, ast.Attribute) and
+            node.func.attr == "shift" and
+            node.args and isinstance(node.args[0], ast.Constant)):
+        n = int(node.args[0].value)
+        return _condition_label(node.func.value, local_vars, shift + n)
+
+    # Direkte Vergleiche oder Ausdrücke
+    try:
+        raw = ast.unparse(node)
+        cleaned = re.sub(r"dataframe\['([^']+)'\]", r"\1", raw)
+        cleaned = re.sub(r'dataframe\["([^"]+)"\]', r"\1", cleaned)
+        # .shift(n) im Label lesbar machen
+        cleaned = re.sub(r"\.shift\((\d+)\)", r" (Kerze -\1)", cleaned)
+        return f"{cleaned}{suffix}"
+    except Exception:
+        return f"?{suffix}"
+
+
+def _flatten_bitand(node):
+    """Zerlegt (A & B & C) in [A, B, C] (BitAnd-Baum → flache Liste)."""
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitAnd):
+        return _flatten_bitand(node.left) + _flatten_bitand(node.right)
+    return [node]
+
+
+def parse_entry_conditions(code):
+    """
+    Parst populate_entry_trend() und gibt Liste von
+    {'label': str, 'node': ast.AST, 'local_vars': dict} zurück.
+    Unterstützt das Muster: dataframe.loc[(A & B & C), 'enter_long'] = 1
+    """
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as e:
+        logger.warning("Strategie-AST-Fehler: %s", e)
+        return []
+
+    for fn in ast.walk(tree):
+        if not (isinstance(fn, ast.FunctionDef) and fn.name == "populate_entry_trend"):
+            continue
+
+        # Lokale Variablenzuweisungen sammeln
+        local_vars = {}
+        for stmt in fn.body:
+            if isinstance(stmt, ast.Assign):
+                for tgt in stmt.targets:
+                    if isinstance(tgt, ast.Name):
+                        local_vars[tgt.id] = stmt.value
+
+        # dataframe.loc[(cond), 'enter_long'] = 1  finden
+        for stmt in fn.body:
+            if not isinstance(stmt, ast.Assign):
+                continue
+            tgt = stmt.targets[0] if stmt.targets else None
+            if not isinstance(tgt, ast.Subscript):
+                continue
+            # loc-Slice ist ein Tuple: (condition, 'enter_long')
+            sl = tgt.slice
+            if isinstance(sl, ast.Index):   # Python < 3.9
+                sl = sl.value
+            if not isinstance(sl, ast.Tuple) or len(sl.elts) < 2:
+                continue
+            col_node = sl.elts[-1]
+            if not (isinstance(col_node, ast.Constant) and col_node.value == "enter_long"):
+                continue
+
+            cond_root = sl.elts[0]
+            conditions = _flatten_bitand(cond_root)
+            result = []
+            for cond in conditions:
+                label = _condition_label(cond, local_vars)
+                result.append({"label": label, "node": cond, "local_vars": local_vars})
+            logger.info("Strategie-Bedingungen geparst: %d Bedingungen", len(result))
+            return result
+
+    logger.warning("Kein enter_long-Block in populate_entry_trend gefunden")
+    return []
 
 @app.route("/api/strategy")
 def get_strategy():
     """
-    Gibt pro Coin alle Strategie-Indikatoren der letzten Kerze zurück,
-    jeweils mit Ampelklassifizierung (buy/sell/neutral).
+    Gibt pro Coin die Einstiegs-Bedingungen der geladenen Strategie zurück,
+    direkt ausgewertet gegen die analysierten Kerzen von Freqtrade.
+    Jede Bedingung erhält eine Ampelfarbe: buy (grün) = erfüllt, sell (rot) = nicht erfüllt.
     """
     try:
         cfg = load_config()
         if "freqtrade" not in cfg:
             return jsonify({"error": "Freqtrade nicht konfiguriert"}), 400
+
+        # Strategie-Code laden und Entry-Bedingungen per AST parsen
+        _, strategy_code = load_strategy_code()
+        entry_conditions = parse_entry_conditions(strategy_code) if strategy_code else []
+        if not entry_conditions:
+            logger.warning("Keine Entry-Bedingungen aus Strategie geparst – Fallback auf generische Klassifizierung")
 
         session, base_url = ft_session(cfg)
         symbols = ft_whitelist_symbols(session, base_url)
@@ -488,36 +645,72 @@ def get_strategy():
                 )
                 df_data = df_resp.json()
                 columns = df_data.get("columns", [])
-                rows = df_data.get("data", [])
+                raw_rows = df_data.get("data", [])
 
-                if not rows or not columns:
+                if not raw_rows or not columns:
                     result[symbol] = {"indicators": [], "signal": "neutral", "buy_count": 0, "total": 0}
                     continue
 
-                last = dict(zip(columns, rows[-1]))
+                # Letzte 5 Kerzen als Dicts aufbereiten (für .shift(n)-Auswertung)
+                rows = [dict(zip(columns, r)) for r in raw_rows[-5:]]
+                last = rows[-1]
                 indicators = []
                 buy_count = 0
 
-                for col, val in last.items():
-                    if col in IGNORED_COLS:
-                        continue
-                    status = classify_indicator(col, val)
-                    indicators.append({"name": col, "value": val, "status": status})
-                    if status == "buy":
-                        buy_count += 1
+                if entry_conditions:
+                    # AST-basierte Auswertung: eine Zeile pro Strategie-Bedingung
+                    for cond in entry_conditions:
+                        display_val = _display_value(cond["node"], rows, cond["local_vars"])
+                        _, met = _eval_node(cond["node"], rows, cond["local_vars"])
+                        status = "buy" if met is True else ("sell" if met is False else "neutral")
+                        if met is True:
+                            buy_count += 1
+                        indicators.append({
+                            "name":   cond["label"],
+                            "value":  display_val,
+                            "status": status,
+                        })
+                else:
+                    # Fallback: generische Klassifizierung aller Dataframe-Spalten
+                    IGNORED = {
+                        "date","open","high","low","close","volume","enter_long","exit_long",
+                        "enter_short","exit_short","buy","sell","enter_tag","exit_tag",
+                    }
+                    for col, val in last.items():
+                        if col in IGNORED:
+                            continue
+                        col_lower = col.lower()
+                        try:
+                            fval = float(val)
+                        except (TypeError, ValueError):
+                            continue
+                        if fval == 1.0:
+                            status = "buy"
+                        elif fval == 0.0:
+                            status = "neutral"
+                        elif "rsi" in col_lower:
+                            status = "buy" if fval < 30 else ("sell" if fval > 70 else "neutral")
+                        elif "macd" in col_lower and "signal" not in col_lower:
+                            status = "buy" if fval > 0 else "sell"
+                        else:
+                            status = "neutral"
+                        indicators.append({"name": col, "value": val, "status": status})
+                        if status == "buy":
+                            buy_count += 1
 
-                # Gesamtsignal
+                # Gesamtsignal aus Freqtrade-Datensatz
                 enter_long = bool(last.get("enter_long", last.get("buy", 0)))
                 in_trade = pair in open_trades
                 signal = "buy" if (enter_long or in_trade) else "neutral"
 
                 result[symbol] = {
                     "indicators": indicators,
-                    "signal": signal,
-                    "buy_count": buy_count,
-                    "total": len(indicators),
-                    "in_trade": pair in open_trades,
-                    "timeframe": timeframe,
+                    "signal":     signal,
+                    "buy_count":  buy_count,
+                    "total":      len(indicators),
+                    "in_trade":   in_trade,
+                    "timeframe":  timeframe,
+                    "strategy_parsed": bool(entry_conditions),
                 }
             except Exception as e:
                 logger.warning("Strategie-Fehler für %s: %s", symbol, e)
