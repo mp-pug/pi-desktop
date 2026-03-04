@@ -372,14 +372,14 @@ def get_signals():
                 signals[symbol] = "neutral"
                 continue
 
-            # Analyzed dataframe für das Pair abrufen
+            # Aktuelle Kerzen inkl. Indikatoren abrufen
             df_resp = session.get(
-                base_url + "/api/v1/analyzed_dataframe",
-                params={"pair": pair, "timeframe": timeframe},
+                base_url + "/api/v1/pair_candles",
+                params={"pair": pair, "timeframe": timeframe, "limit": 3},
                 timeout=5,
             )
             if df_resp.status_code != 200:
-                logger.warning("Analyzed dataframe für %s nicht verfügbar (HTTP %d)", pair, df_resp.status_code)
+                logger.warning("pair_candles für %s nicht verfügbar (HTTP %d)", pair, df_resp.status_code)
                 signals[symbol] = "neutral"
                 continue
 
@@ -639,8 +639,8 @@ def get_strategy():
                 continue
             try:
                 df_resp = session.get(
-                    base_url + "/api/v1/analyzed_dataframe",
-                    params={"pair": pair, "timeframe": timeframe},
+                    base_url + "/api/v1/pair_candles",
+                    params={"pair": pair, "timeframe": timeframe, "limit": 5},
                     timeout=5,
                 )
                 df_data = df_resp.json()
