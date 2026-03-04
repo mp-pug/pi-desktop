@@ -1,6 +1,6 @@
 # Pi Dashboard
 
-Ein schlankes Krypto-Trading-Dashboard für den Raspberry Pi 3B+ mit 10-Zoll-Display.
+Ein schlankes Krypto-Trading-Dashboard für den Raspberry Pi 3B+ mit 7-Zoll-Display.
 Zeigt Wetter, Echtzeit-Uhr, Live-Kursdiagramme, Exchange-Kontostände, Freqtrade-Strategie-Indikatoren, Krypto-News und eine KI-gestützte Marktanalyse.
 
 ## Features
