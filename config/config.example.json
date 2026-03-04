@@ -29,6 +29,8 @@
     "refresh_hour": 6
   },
 
+  "chart_interval": 60,
+
   "rss_feeds": [
     "https://cointelegraph.com/rss",
     "https://coindesk.com/arc/outboundfeeds/rss/",
