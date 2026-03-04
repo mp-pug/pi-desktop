@@ -10,7 +10,7 @@
 
   <!-- KOPFZEILE -->
   <header class="topbar">
-    <div class="topbar-left">
+    <div class="topbar-top">
       <div class="topbar-datetime">
         <div class="time" id="clock">--:--:--</div>
         <div class="date" id="date-display">--</div>
@@ -18,10 +18,12 @@
       <div class="topbar-weather" id="weather">
         <div class="loading" style="color:#aaa">Lade Wetter...</div>
       </div>
+      <div class="bot-status" id="bot-status"></div>
     </div>
     <nav class="tab-nav">
       <button class="tab-btn active" data-tab="home">Home</button>
       <button class="tab-btn" data-tab="strategy">Strategie</button>
+      <button class="tab-btn" data-tab="trades">Trades</button>
       <button class="tab-btn" data-tab="news">News</button>
       <button class="tab-btn" data-tab="ai">KI</button>
     </nav>
@@ -53,6 +55,12 @@
         </h3>
         <div id="bitvavo-balances" class="balance-list"></div>
       </div>
+      <div class="exchange-block portfolio-block">
+        <h3 class="exchange-title">Gesamt</h3>
+        <div id="portfolio-total" class="portfolio-total">
+          <div class="loading">–</div>
+        </div>
+      </div>
     </section>
   </div>
 
@@ -82,6 +90,24 @@
       <div class="loading">Lade Strategie-Daten...</div>
     </div>
 
+  </div>
+
+  <!-- TAB: TRADES -->
+  <div class="tab-content" id="tab-trades">
+    <div class="trades-container">
+      <section class="trades-section">
+        <h3 class="trades-section-title">Offene Trades</h3>
+        <div id="open-trades-list" class="trades-list">
+          <div class="loading">Lade Trades...</div>
+        </div>
+      </section>
+      <section class="trades-section">
+        <h3 class="trades-section-title">Letzte Trades</h3>
+        <div id="closed-trades-list" class="trades-list">
+          <div class="loading">Lade Trades...</div>
+        </div>
+      </section>
+    </div>
   </div>
 
   <!-- TAB: NEWS -->

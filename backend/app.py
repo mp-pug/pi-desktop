@@ -1047,6 +1047,92 @@ def init_strategy_description():
             _strategy_info_cache["description"] = {"error": str(e)}
 
 
+# ── Bot-Status ────────────────────────────────────────────────────────────────
+
+@app.route("/api/bot-status")
+def get_bot_status():
+    """Gibt den aktuellen Status des Freqtrade-Bots zurück."""
+    try:
+        cfg = load_config()
+        if "freqtrade" not in cfg:
+            return jsonify({"available": False})
+
+        session, base_url = ft_session(cfg)
+        ft_cfg   = ft_show_config(session, base_url)
+        count    = session.get(base_url + "/api/v1/count",  timeout=5).json()
+        profit_r = session.get(base_url + "/api/v1/profit", timeout=5)
+        profit   = profit_r.json() if profit_r.status_code == 200 else {}
+
+        return jsonify({
+            "available":     True,
+            "state":         ft_cfg.get("state", "unknown"),
+            "strategy":      ft_cfg.get("strategy"),
+            "open_trades":   count.get("current", 0),
+            "max_trades":    count.get("max", 0),
+            "profit_closed": round(float(profit.get("profit_closed_coin", 0)), 4),
+            "profit_factor": round(float(profit.get("profit_factor",      1)), 2),
+        })
+    except Exception as e:
+        logger.warning("Bot-Status nicht verfügbar: %s", e)
+        return jsonify({"available": False, "error": str(e)})
+
+
+# ── Trade-Historie ─────────────────────────────────────────────────────────────
+
+@app.route("/api/trades")
+def get_trades():
+    """Gibt offene und abgeschlossene Trades aus Freqtrade zurück."""
+    try:
+        cfg = load_config()
+        if "freqtrade" not in cfg:
+            return jsonify({"error": "Freqtrade nicht konfiguriert"}), 400
+
+        session, base_url = ft_session(cfg)
+
+        open_resp   = session.get(base_url + "/api/v1/status",         timeout=5)
+        closed_resp = session.get(base_url + "/api/v1/trades",
+                                  params={"limit": 30}, timeout=5)
+
+        open_trades   = open_resp.json()   if open_resp.status_code   == 200 else []
+        closed_data   = closed_resp.json() if closed_resp.status_code == 200 else {}
+        closed_trades = closed_data.get("trades", [])
+
+        # Nur relevante Felder zurückgeben
+        def fmt_open(t):
+            return {
+                "pair":            t.get("pair"),
+                "open_rate":       t.get("open_rate"),
+                "current_rate":    t.get("current_rate"),
+                "profit_pct":      round(float(t.get("current_profit_pct", 0)) * 100, 2),
+                "profit_abs":      round(float(t.get("current_profit_abs", 0)), 2),
+                "open_date":       t.get("open_date"),
+                "stake_amount":    round(float(t.get("stake_amount", 0)), 2),
+                "is_open":         True,
+            }
+
+        def fmt_closed(t):
+            return {
+                "pair":        t.get("pair"),
+                "open_rate":   t.get("open_rate"),
+                "close_rate":  t.get("close_rate"),
+                "profit_pct":  round(float(t.get("profit_ratio", 0)) * 100, 2),
+                "profit_abs":  round(float(t.get("profit_abs", 0)), 2),
+                "open_date":   t.get("open_date"),
+                "close_date":  t.get("close_date"),
+                "is_open":     False,
+            }
+
+        logger.info("Trades geladen: %d offen, %d geschlossen",
+                    len(open_trades), len(closed_trades))
+        return jsonify({
+            "open":   [fmt_open(t)   for t in open_trades],
+            "closed": [fmt_closed(t) for t in closed_trades],
+        })
+    except Exception as e:
+        logger.exception("Fehler in get_trades")
+        return jsonify({"error": str(e)}), 500
+
+
 # ── Health ────────────────────────────────────────────────────────────────────
 
 @app.route("/health")
