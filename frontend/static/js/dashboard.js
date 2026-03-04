@@ -88,8 +88,12 @@ function sparklinePath(values, w, h) {
   }).join(" ");
 }
 
+// Guard gegen Race Condition: verhindert dass loadSignals läuft während Charts neu gerendert werden
+let chartsRendering = false;
+
 async function loadCharts() {
   const section = document.getElementById("charts-section");
+  chartsRendering = true;
   try {
     const data = await fetchJSON(`${API}/api/charts`);
     section.innerHTML = Object.entries(data).map(([symbol, info]) => {
@@ -110,14 +114,20 @@ async function loadCharts() {
     }).join("");
   } catch(e) {
     section.innerHTML = `<span class="error">Kurse nicht verfügbar: ${e.message}</span>`;
+  } finally {
+    chartsRendering = false;
   }
 }
 
 // ── Signale ───────────────────────────────────────────────────────────────────
 async function loadSignals() {
+  // Race Condition vermeiden: nicht während Charts neu gerendert werden
+  if (chartsRendering) return;
   try {
     const signals = await fetchJSON(`${API}/api/signals`);
     if (signals.error) return;
+    // Nochmals prüfen: Charts könnten während des awaits neu gerendert worden sein
+    if (chartsRendering) return;
     document.querySelectorAll(".chart-card[data-symbol]").forEach(card => {
       const sig = signals[card.dataset.symbol] || "neutral";
       card.classList.remove("signal-buy","signal-sell","signal-neutral");
@@ -321,13 +331,17 @@ function showNextHeadline() {
 }
 
 // ── Start & Intervalle ────────────────────────────────────────────────────────
+// Interval-IDs gespeichert, damit sie ggf. bereinigt werden können
+const intervals = {};
+
 loadWeather();
 loadCharts().then(() => loadSignals());
 loadBalances();
 loadTicker();
 
-setInterval(loadWeather,  30 * 60 * 1000);
-setInterval(() => loadCharts().then(() => loadSignals()),  5 * 60 * 1000);
-setInterval(loadSignals,   2 * 60 * 1000);
-setInterval(loadBalances,  2 * 60 * 1000);
-setInterval(loadTicker,   15 * 60 * 1000);
+// Signals werden nach Charts geladen (chain) – kein separater Interval nötig,
+// um Race Conditions beim DOM-Neuaufbau zu vermeiden.
+intervals.weather   = setInterval(loadWeather,  30 * 60 * 1000);
+intervals.charts    = setInterval(() => loadCharts().then(() => loadSignals()),  5 * 60 * 1000);
+intervals.balances  = setInterval(loadBalances,  2 * 60 * 1000);
+intervals.ticker    = setInterval(loadTicker,   15 * 60 * 1000);

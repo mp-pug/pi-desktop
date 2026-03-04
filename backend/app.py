@@ -1,24 +1,56 @@
 import os
+import re
 import json
 import hashlib
 import hmac
 import base64
 import time
+import datetime
+import threading
+import logging
 import urllib.parse
 import requests
 import feedparser
 from flask import Flask, jsonify
 from flask_cors import CORS
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
 CORS(app)
 
 CONFIG_PATH = os.environ.get("CONFIG_PATH", "/config/config.json")
 
+REQUIRED_CONFIG_KEYS = [
+    ("openweather", "api_key"),
+    ("openweather", "city"),
+]
+OPTIONAL_CONFIG_SECTIONS = ["kraken", "bitvavo", "freqtrade", "mammouth"]
+
 
 def load_config():
     with open(CONFIG_PATH, "r") as f:
         return json.load(f)
+
+
+def validate_config(cfg):
+    """Prüft die Konfiguration auf Pflichtfelder und warnt bei fehlenden optionalen Sektionen."""
+    errors = []
+    for section, key in REQUIRED_CONFIG_KEYS:
+        if not cfg.get(section, {}).get(key):
+            errors.append(f"'{section}.{key}' fehlt oder ist leer")
+    if errors:
+        for err in errors:
+            logger.error("Config-Fehler: %s", err)
+        raise RuntimeError(f"Ungültige Konfiguration: {'; '.join(errors)}")
+    for section in OPTIONAL_CONFIG_SECTIONS:
+        if section not in cfg:
+            logger.warning("Config: Optionale Sektion '%s' nicht konfiguriert", section)
 
 
 # ── Wetter ────────────────────────────────────────────────────────────────────
@@ -39,6 +71,7 @@ def get_weather():
         data = r.json()
         if r.status_code != 200:
             message = data.get("message", f"HTTP {r.status_code}")
+            logger.warning("OpenWeather-Fehler: %s", message)
             return jsonify({"error": f"OpenWeather: {message}"}), r.status_code
         return jsonify({
             "city": data["name"],
@@ -50,6 +83,7 @@ def get_weather():
             "wind_speed": round(data["wind"]["speed"] * 3.6, 1),
         })
     except Exception as e:
+        logger.exception("Fehler in get_weather")
         return jsonify({"error": str(e)}), 500
 
 
@@ -72,9 +106,12 @@ def get_news():
                     if title:
                         headlines.append(title)
             except Exception:
+                logger.warning("RSS-Feed-Fehler für %s", feed_url)
                 continue
+        logger.info("News geladen: %d Headlines", len(headlines))
         return jsonify(headlines)
     except Exception as e:
+        logger.exception("Fehler in get_news")
         return jsonify({"error": str(e)}), 500
 
 
@@ -114,6 +151,7 @@ def get_kraken():
 
         result = kraken_request(api_key, api_secret, "/0/private/Balance")
         if result.get("error"):
+            logger.warning("Kraken API-Fehler: %s", result["error"])
             return jsonify({"error": result["error"]}), 500
 
         balances = {}
@@ -126,8 +164,10 @@ def get_kraken():
                     clean = "BTC"
                 balances[clean] = round(val, 8)
 
+        logger.info("Kraken-Balances geladen: %d Assets", len(balances))
         return jsonify(balances)
     except Exception as e:
+        logger.exception("Fehler in get_kraken")
         return jsonify({"error": str(e)}), 500
 
 
@@ -162,6 +202,7 @@ def get_bitvavo():
 
         result = bitvavo_request(api_key, api_secret, "/balance")
         if isinstance(result, dict) and result.get("errorCode"):
+            logger.warning("Bitvavo API-Fehler: %s", result.get("error"))
             return jsonify({"error": result.get("error")}), 500
 
         balances = {}
@@ -172,8 +213,10 @@ def get_bitvavo():
             if total > 0:
                 balances[entry["symbol"]] = round(total, 8)
 
+        logger.info("Bitvavo-Balances geladen: %d Assets", len(balances))
         return jsonify(balances)
     except Exception as e:
+        logger.exception("Fehler in get_bitvavo")
         return jsonify({"error": str(e)}), 500
 
 
@@ -213,8 +256,10 @@ def get_whitelist():
             return jsonify({"error": "Freqtrade nicht konfiguriert"}), 400
         session, base_url = ft_session(cfg)
         symbols = ft_whitelist_symbols(session, base_url)
+        logger.info("Freqtrade-Whitelist geladen: %s", symbols)
         return jsonify(symbols)
     except Exception as e:
+        logger.exception("Fehler in get_whitelist")
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/charts")
@@ -231,7 +276,7 @@ def get_charts():
                 session, base_url = ft_session(cfg)
                 symbols = ft_whitelist_symbols(session, base_url)
             except Exception:
-                pass
+                logger.warning("Freqtrade-Whitelist nicht erreichbar, nutze Fallback")
         # Fallback auf statische Liste
         if not symbols:
             symbols = list(KRAKEN_PAIR_MAP.keys())
@@ -240,6 +285,7 @@ def get_charts():
         for symbol in symbols:
             kraken_pair = KRAKEN_PAIR_MAP.get(symbol)
             if not kraken_pair:
+                logger.debug("Kein Kraken-Pair für Symbol '%s', wird übersprungen", symbol)
                 continue
             try:
                 r = requests.get(
@@ -261,9 +307,12 @@ def get_charts():
                     "sparkline": closes,
                 }
             except Exception as e:
+                logger.warning("Chart-Fehler für %s: %s", symbol, e)
                 result[symbol] = {"error": str(e)}
+        logger.info("Charts geladen: %d Coins", len(result))
         return jsonify(result)
     except Exception as e:
+        logger.exception("Fehler in get_charts")
         return jsonify({"error": str(e)}), 500
 
 
@@ -280,12 +329,14 @@ def ft_session(cfg):
         timeout=5,
     )
     if resp.status_code == 401:
+        logger.error("Freqtrade: Ungültige Zugangsdaten (401)")
         raise ValueError("Freqtrade: Ungültige Zugangsdaten (401)")
     resp.raise_for_status()
     token = resp.json().get("access_token")
     if not token:
         raise ValueError("Freqtrade: Kein Token erhalten")
     s.headers.update({"Authorization": f"Bearer {token}"})
+    logger.debug("Freqtrade-Session erfolgreich aufgebaut")
     return s, ft["url"]
 
 @app.route("/api/signals")
@@ -313,6 +364,7 @@ def get_signals():
         open_trades = {t["pair"] for t in trades_resp.json()}
 
         signals = {}
+        timeframe = ft_timeframe(session, base_url)
         for symbol in ft_whitelist_symbols(session, base_url):
             pair = next((p for p in whitelist if p.startswith(symbol + "/")), None)
             if not pair:
@@ -320,13 +372,13 @@ def get_signals():
                 continue
 
             # Analyzed dataframe für das Pair abrufen
-            timeframe = ft_timeframe(session, base_url)
             df_resp = session.get(
                 base_url + "/api/v1/analyzed_dataframe",
                 params={"pair": pair, "timeframe": timeframe},
                 timeout=5,
             )
             if df_resp.status_code != 200:
+                logger.warning("Analyzed dataframe für %s nicht verfügbar (HTTP %d)", pair, df_resp.status_code)
                 signals[symbol] = "neutral"
                 continue
 
@@ -352,9 +404,11 @@ def get_signals():
             else:
                 signals[symbol] = "neutral"
 
+        logger.info("Signale geladen: %s", signals)
         return jsonify(signals)
 
     except Exception as e:
+        logger.exception("Fehler in get_signals")
         return jsonify({"error": str(e)}), 500
 
 
@@ -466,10 +520,13 @@ def get_strategy():
                     "timeframe": timeframe,
                 }
             except Exception as e:
+                logger.warning("Strategie-Fehler für %s: %s", symbol, e)
                 result[symbol] = {"error": str(e)}
 
+        logger.info("Strategie-Daten geladen: %d Coins", len(result))
         return jsonify(result)
     except Exception as e:
+        logger.exception("Fehler in get_strategy")
         return jsonify({"error": str(e)}), 500
 
 
@@ -493,8 +550,6 @@ def get_news_full():
                     if not title:
                         continue
                     summary = entry.get("summary", entry.get("description", "")).strip()
-                    # HTML-Tags entfernen
-                    import re
                     summary = re.sub(r"<[^>]+>", "", summary)[:400]
                     articles.append({
                         "title": title,
@@ -503,16 +558,22 @@ def get_news_full():
                         "published": entry.get("published", ""),
                     })
             except Exception:
+                logger.warning("RSS-Feed-Fehler (full) für %s", feed_url)
                 continue
+        logger.info("News/full geladen: %d Artikel", len(articles))
         return jsonify(articles)
     except Exception as e:
+        logger.exception("Fehler in get_news_full")
         return jsonify({"error": str(e)}), 500
 
 
 # ── KI-Zusammenfassung (Mammouth AI) ─────────────────────────────────────────
 
 _ai_cache = {"summary": None, "generated_at": 0}
+_ai_lock = threading.Lock()
+
 _strategy_info_cache: dict = {"description": None}
+_strategy_lock = threading.Lock()
 
 def generate_ai_summary():
     """Generiert eine KI-Zusammenfassung des Kryptomarkts via Mammouth API."""
@@ -561,7 +622,6 @@ def get_ai_summary():
         refresh_hour = ai_cfg.get("refresh_hour", 6)  # Standard: 06:00 Uhr
 
         now = time.time()
-        import datetime
         current_hour = datetime.datetime.now().hour
 
         # Neu generieren wenn: kein Cache, oder Refresh-Stunde erreicht und letzte Gen. > 23h her
@@ -571,16 +631,30 @@ def get_ai_summary():
         )
 
         if needs_refresh:
-            _ai_cache["summary"] = generate_ai_summary()
-            _ai_cache["generated_at"] = now
+            with _ai_lock:
+                # Double-checked locking: erneut prüfen nach Lock-Erwerb
+                now = time.time()
+                still_needs_refresh = (
+                    _ai_cache["summary"] is None or
+                    (current_hour == refresh_hour and now - _ai_cache["generated_at"] > 23 * 3600)
+                )
+                if still_needs_refresh:
+                    logger.info("Generiere neue KI-Zusammenfassung")
+                    _ai_cache["summary"] = generate_ai_summary()
+                    _ai_cache["generated_at"] = now
+                    logger.info("KI-Zusammenfassung generiert")
 
-        import datetime as dt
-        generated_at_str = dt.datetime.fromtimestamp(_ai_cache["generated_at"]).strftime("%d.%m.%Y %H:%M") if _ai_cache["generated_at"] else ""
+        with _ai_lock:
+            summary = _ai_cache["summary"]
+            generated_at = _ai_cache["generated_at"]
+
+        generated_at_str = datetime.datetime.fromtimestamp(generated_at).strftime("%d.%m.%Y %H:%M") if generated_at else ""
         return jsonify({
-            "summary": _ai_cache["summary"],
+            "summary": summary,
             "generated_at": generated_at_str,
         })
     except Exception as e:
+        logger.exception("Fehler in get_ai_summary")
         return jsonify({"error": str(e)}), 500
 
 
@@ -640,22 +714,27 @@ def generate_strategy_description():
 @app.route("/api/strategy-info")
 def get_strategy_info():
     """Gibt die gecachte KI-Beschreibung der Strategie zurück."""
-    if _strategy_info_cache["description"] is None:
+    with _strategy_lock:
+        description = _strategy_info_cache["description"]
+    if description is None:
         return jsonify({"error": "Strategie-Beschreibung wird noch generiert, bitte kurz warten."}), 503
-    return jsonify(_strategy_info_cache["description"])
+    return jsonify(description)
 
 def init_strategy_description():
     """Wird beim Start des Containers aufgerufen – generiert die Beschreibung einmalig."""
     try:
+        logger.info("Generiere Strategie-Beschreibung im Hintergrund...")
         result = generate_strategy_description()
-        _strategy_info_cache["description"] = result
+        with _strategy_lock:
+            _strategy_info_cache["description"] = result
         if "error" not in result:
-            print(f"Strategie-Beschreibung generiert: {result.get('filename')}")
+            logger.info("Strategie-Beschreibung generiert: %s", result.get("filename"))
         else:
-            print(f"Strategie-Beschreibung Fehler: {result['error']}")
+            logger.error("Strategie-Beschreibung Fehler: %s", result["error"])
     except Exception as e:
-        _strategy_info_cache["description"] = {"error": str(e)}
-        print(f"Strategie-Beschreibung Exception: {e}")
+        logger.exception("Strategie-Beschreibung Exception")
+        with _strategy_lock:
+            _strategy_info_cache["description"] = {"error": str(e)}
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
@@ -666,7 +745,17 @@ def health():
 
 
 if __name__ == "__main__":
-    import threading
+    try:
+        cfg = load_config()
+        validate_config(cfg)
+        logger.info("Konfiguration erfolgreich geladen und validiert")
+    except FileNotFoundError:
+        logger.error("Konfigurationsdatei nicht gefunden: %s", CONFIG_PATH)
+        raise
+    except RuntimeError as e:
+        logger.error("Konfigurationsfehler beim Start: %s", e)
+        raise
+
     t = threading.Thread(target=init_strategy_description, daemon=True)
     t.start()
     app.run(host="0.0.0.0", port=5000, debug=False)
