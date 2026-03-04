@@ -69,7 +69,6 @@ async function loadWeather() {
       <div class="weather-details">
         <span class="weather-city">${d.city}</span>
         <span class="weather-desc">${d.description}</span>
-        <span class="weather-meta">Gefühlt ${d.feels_like}°C · ${d.humidity}% · ${d.wind_speed} km/h</span>
       </div>`;
   } catch(e) {
     el.innerHTML = `<span class="error" style="color:#aaa">${e.message}</span>`;
