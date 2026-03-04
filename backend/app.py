@@ -1069,8 +1069,8 @@ def get_bot_status():
             "strategy":      ft_cfg.get("strategy"),
             "open_trades":   count.get("current", 0),
             "max_trades":    count.get("max", 0),
-            "profit_closed": round(float(profit.get("profit_closed_coin", 0)), 4),
-            "profit_factor": round(float(profit.get("profit_factor",      1)), 2),
+            "profit_closed": round(float(profit.get("profit_closed_coin") or 0), 4),
+            "profit_factor": round(float(profit.get("profit_factor")      or 1), 2),
         })
     except Exception as e:
         logger.warning("Bot-Status nicht verfügbar: %s", e)
