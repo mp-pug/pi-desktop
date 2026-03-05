@@ -9,9 +9,9 @@
   --text-muted: #6b7280;
   --border:     #dde1eb;
   --topbar-bg:  #0a0c14;
-  --topbar-h:   60px;
+  --topbar-h:   72px;
   --ticker-bg:  #0a0c14;
-  --ticker-h:   26px;
+  --ticker-h:   32px;
   --green:      #16a34a;
   --red:        #dc2626;
   font-size: 13px;
@@ -35,7 +35,7 @@ html, body {
 }
 
 .topbar-top {
-  height: 34px; flex-shrink: 0;
+  height: 42px; flex-shrink: 0;
   display: flex; align-items: center;
   padding: 0 14px; gap: 14px;
   overflow: hidden;
@@ -47,26 +47,26 @@ html, body {
 }
 
 .time {
-  font-size: 1.08rem; font-weight: 300; color: #fff;
+  font-size: 1.2rem; font-weight: 300; color: #fff;
   line-height: 1.1; white-space: nowrap;
   letter-spacing: 0.03em;
 }
-.date { font-size: 0.59rem; color: #c0c8d8; white-space: nowrap; letter-spacing: 0.04em; }
+.date { font-size: 0.68rem; color: #c0c8d8; white-space: nowrap; letter-spacing: 0.04em; }
 
 .topbar-weather {
   display: flex; align-items: center; gap: 6px;
   flex: 1; min-width: 0; overflow: hidden;
 }
 .weather-icon { width: 20px; height: 20px; flex-shrink: 0; }
-.weather-temp { font-size: 0.88rem; font-weight: 400; color: #fff; white-space: nowrap; }
-.weather-details { display: flex; flex-direction: column; gap: 0; min-width: 0; }
-.weather-city { font-size: 0.6rem; color: #93c5fd; font-weight: 500; white-space: nowrap; }
-.weather-desc { font-size: 0.58rem; color: #c0c8d8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.weather-temp { font-size: 1rem; font-weight: 400; color: #fff; white-space: nowrap; }
+.weather-details { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.weather-city { font-size: 0.7rem; color: #93c5fd; font-weight: 500; white-space: nowrap; }
+.weather-desc { font-size: 0.67rem; color: #c0c8d8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .weather-meta { display: none; }
 
 /* ── Tab-Navigation ───────────────────────────────────────────────────────── */
 .tab-nav {
-  display: flex; height: 26px; flex-shrink: 0;
+  display: flex; height: 30px; flex-shrink: 0;
   border-top: 1px solid var(--border);
 }
 
@@ -77,13 +77,13 @@ html, body {
   border-right: 1px solid var(--border);
   color: var(--text-muted);
   padding: 0;
-  font-size: 0.69rem;
+  font-size: 0.76rem;
   font-weight: 600;
   cursor: pointer;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   transition: color 0.15s, background 0.15s;
-  line-height: 26px;
+  line-height: 30px;
 }
 .tab-btn:last-child { border-right: none; }
 .tab-btn:hover { background: rgba(76, 110, 245, 0.08); color: var(--text); }
@@ -270,17 +270,17 @@ html, body {
 }
 .ticker-label {
   flex-shrink: 0; background: var(--accent); color: #fff;
-  font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em;
-  padding: 0 8px; height: 100%; display: flex; align-items: center;
+  font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em;
+  padding: 0 10px; height: 100%; display: flex; align-items: center;
 }
 .ticker-wrapper { flex: 1; overflow: hidden; height: 100%; display: flex; align-items: center; padding: 0 12px; }
 .ticker-headline {
-  color: #dde1ee; font-size: 0.69rem; white-space: nowrap;
+  color: #dde1ee; font-size: 0.78rem; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
   opacity: 0; transition: opacity 0.8s ease;
 }
 .ticker-headline.visible { opacity: 1; }
-.ticker-counter { flex-shrink: 0; color: var(--text-muted); font-size: 0.58rem; padding: 0 8px; white-space: nowrap; }
+.ticker-counter { flex-shrink: 0; color: var(--text-muted); font-size: 0.65rem; padding: 0 10px; white-space: nowrap; }
 
 /* ── Hilfsstile ───────────────────────────────────────────────────────────── */
 .loading { color: var(--text-muted); font-size: 0.7rem; }
@@ -333,7 +333,7 @@ html, body {
 .bot-status {
   position: fixed;
   top: 0; right: 12px;
-  height: 34px;
+  height: 42px;
   display: flex; align-items: center; gap: 5px;
   white-space: nowrap; z-index: 200;
 }
