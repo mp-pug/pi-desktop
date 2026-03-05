@@ -11,7 +11,7 @@
   --topbar-bg:  #0a0c14;
   --topbar-h:   72px;
   --ticker-bg:  #0a0c14;
-  --ticker-h:   38px;
+  --ticker-h:   46px;
   --green:      #16a34a;
   --red:        #dc2626;
   font-size: 13px;
@@ -270,17 +270,17 @@ html, body {
 }
 .ticker-label {
   flex-shrink: 0; background: var(--accent); color: #fff;
-  font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em;
-  padding: 0 10px; height: 100%; display: flex; align-items: center;
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em;
+  padding: 0 12px; height: 100%; display: flex; align-items: center;
 }
-.ticker-wrapper { flex: 1; overflow: hidden; height: 100%; display: flex; align-items: center; padding: 0 12px; }
+.ticker-wrapper { flex: 1; overflow: hidden; height: 100%; display: flex; align-items: center; padding: 0 14px; }
 .ticker-headline {
-  color: #dde1ee; font-size: 0.78rem; font-weight: 700; white-space: nowrap;
+  color: #fff; font-size: 0.88rem; font-weight: 700; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
   opacity: 0; transition: opacity 0.8s ease;
 }
 .ticker-headline.visible { opacity: 1; }
-.ticker-counter { flex-shrink: 0; color: var(--text-muted); font-size: 0.65rem; padding: 0 10px; white-space: nowrap; }
+.ticker-counter { flex-shrink: 0; color: #9ca3af; font-size: 0.7rem; padding: 0 12px; white-space: nowrap; }
 
 /* ── Hilfsstile ───────────────────────────────────────────────────────────── */
 .loading { color: var(--text-muted); font-size: 0.7rem; }
