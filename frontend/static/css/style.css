@@ -350,16 +350,16 @@ html, body {
 }
 
 /* ── Portfolio-Total ──────────────────────────────────────────────────────── */
-.portfolio-block { flex: 0.8; }
+.portfolio-block { flex: 0.5; }
 .portfolio-total {
   display: flex; flex-direction: column; justify-content: center;
-  align-items: center; height: 100%;
+  align-items: center; height: 100%; gap: 4px;
 }
 .portfolio-value {
-  font-size: 1.35rem; font-weight: 300; color: var(--text);
+  font-size: 1.1rem; font-weight: 400; color: var(--text);
   font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
 }
-.portfolio-change { font-size: 0.72rem; font-weight: 600; margin-top: 3px; }
+.portfolio-change { font-size: 0.7rem; font-weight: 700; }
 .portfolio-change.up   { color: var(--green); }
 .portfolio-change.down { color: var(--red); }
 

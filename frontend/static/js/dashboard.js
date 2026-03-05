@@ -303,6 +303,7 @@ function showNextHeadline() {
 // ── Portfolio Gesamtwert ───────────────────────────────────────────────────────
 // Speichert zuletzt geladene Kurse und Balances für die Berechnung
 let _chartPrices = {};
+let _chartChanges = {};
 let _balanceAmounts = {};
 
 const STABLE_COINS = new Set(["EUR","USDT","USDC","BUSD","DAI","TUSD"]);
@@ -313,9 +314,11 @@ async function loadCharts() {
   try {
     const data = await fetchJSON(`${API}/api/charts`);
     _chartPrices = {};
+    _chartChanges = {};
     section.innerHTML = Object.entries(data).map(([symbol, info]) => {
       if (info.error) return `<div class="chart-card" data-symbol="${symbol}"><div class="chart-symbol">${symbol}</div><div class="error">-</div></div>`;
       _chartPrices[symbol] = info.price;
+      _chartChanges[symbol] = info.change_pct;
       const up = info.change_pct >= 0;
       const path = sparklinePath(info.sparkline, 100, 26);
       const color = up ? "#16a34a" : "#dc2626";
@@ -360,15 +363,28 @@ function updatePortfolioTotal() {
   if (!Object.keys(_balanceAmounts).length || !Object.keys(_chartPrices).length) return;
 
   let total = 0;
+  let total24hAgo = 0;
   for (const [coin, amount] of Object.entries(_balanceAmounts)) {
-    if (STABLE_COINS.has(coin)) { total += amount; continue; }
-    // Suche passenden Kurs: z.B. BTC → BTC/EUR
+    if (STABLE_COINS.has(coin)) { total += amount; total24hAgo += amount; continue; }
     const key = Object.keys(_chartPrices).find(k => k.startsWith(coin + "/") || k === coin);
-    if (key) total += amount * _chartPrices[key];
+    if (key) {
+      const val = amount * _chartPrices[key];
+      total += val;
+      const chg = _chartChanges[key];
+      total24hAgo += chg != null ? val / (1 + chg / 100) : val;
+    }
   }
   if (total <= 0) return;
+
+  const diff = total - total24hAgo;
+  const diffPct = total24hAgo > 0 ? (diff / total24hAgo) * 100 : 0;
+  const isUp = diff >= 0;
+  const arrow = isUp ? "▲" : "▼";
+  const sign  = isUp ? "+" : "";
+
   el.innerHTML = `
-    <div class="portfolio-value">${total.toLocaleString("de-DE", {minimumFractionDigits: 2, maximumFractionDigits: 2})} €</div>`;
+    <div class="portfolio-value">${total.toLocaleString("de-DE", {minimumFractionDigits: 2, maximumFractionDigits: 2})} €</div>
+    <div class="portfolio-change ${isUp ? "up" : "down"}">${arrow} ${sign}${diffPct.toFixed(2)}% (${sign}${diff.toLocaleString("de-DE", {minimumFractionDigits: 2, maximumFractionDigits: 2})} €)</div>`;
 }
 
 // ── Bot-Status ─────────────────────────────────────────────────────────────────
