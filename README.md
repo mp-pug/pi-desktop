@@ -1,32 +1,53 @@
 # Pi Dashboard
 
-Ein schlankes Krypto-Trading-Dashboard für den Raspberry Pi 3B+ mit 7-Zoll-Display.
-Zeigt Wetter, Echtzeit-Uhr, Live-Kursdiagramme, Exchange-Kontostände, Freqtrade-Strategie-Indikatoren, Krypto-News und eine KI-gestützte Marktanalyse.
+Ein schlankes Krypto-Trading-Dashboard für den Raspberry Pi 3B+ mit 7-Zoll-Display (800×480).
+Zeigt Echtzeit-Marktdaten, Exchange-Kontostände, Freqtrade-Bot-Status, Strategie-Indikatoren, Markt-Sentiment, Krypto-News und eine KI-gestützte Marktanalyse.
 
 ## Features
 
 ### Home
 - Echtzeit-Uhr (sekundengenau) und Wetter via OpenWeatherMap
-- Live-Sparkline-Diagramme mit Kursänderung (Coins aus Freqtrade-Whitelist oder Fallback-Liste)
+- Live-Sparkline-Diagramme mit Coin-Icon und Kursänderung (Coins aus Freqtrade-Whitelist)
 - Konfigurierbarer Kerzen-Zeitraum (`chart_interval` in Minuten, z.B. 60 = 1h, 240 = 4h)
 - Kauf-/Verkauf-Signale aus Freqtrade als farbige Kartenmarkierung
+- **Markt-Indikatoren** (alle 10 Min aktualisiert, freie Public APIs):
+  - BTC Dominanz mit Balken + Season-Label (CoinGecko)
+  - Funding Rate mit zentriertem +/–-Balken (Binance Futures)
+  - Long/Short Ratio mit Split-Balken (Binance Futures)
+  - Mempool Fees Low/Mid/Fast in sat/vByte (mempool.space)
+- **Fear & Greed Index** mit Gauge-Balken (alternative.me)
 - Kontostände von Kraken und Bitvavo
+- Gesamt-Portfolio-Wert mit Änderung (basierend auf chart_interval)
 
 ### Strategie
-- Strategie-Indikatoren pro Coin mit Ampelsystem (grün = Bedingung erfüllt, rot = nicht erfüllt)
-- Bedingungen werden direkt aus dem Python-Code der aktiven Freqtrade-Strategie per AST-Parser extrahiert – kein manuelles Konfigurieren
-- Automatischer Abgleich: lokale `.py`-Datei im `strategies/`-Ordner wird mit der in Freqtrade aktiven Strategie verglichen; bei Abweichung erscheint eine Warnung
-- KI-generierte Strategie-Beschreibung (Mammouth AI); wird nur neu generiert wenn sich die Strategie-Datei geändert hat (Hash-basierter Cache auf dem Config-Volume)
-- Aktualisierung alle 30 Minuten
+- Strategie-Indikatoren pro Coin mit Ampelsystem (grün/gelb/rot)
+- Bedingungen werden per AST-Parser direkt aus dem Python-Code der aktiven Freqtrade-Strategie extrahiert
+- Zähler „X von Y Signalen erfüllt" pro Coin
+- Warnung bei Abweichung zwischen lokaler Strategie-Datei und aktiver Freqtrade-Strategie
+- KI-generierte Strategie-Beschreibung (hash-basierter Cache, nur bei Änderung neu generiert)
+
+### Trades
+- Offene und abgeschlossene Trades aus Freqtrade
+- Statistik-Kopfzeile: Win-Rate, Gesamt-P&L, Anzahl Trades
+- Dauer offener Trades (z.B. „seit 3h 20min")
 
 ### News
-- RSS-Newsfeed-Karten mit Titel, Zusammenfassung und Link
-- Konfigurierbarer RSS-Feed-Ticker am unteren Rand (30-Sekunden-Einblendung)
+- RSS-Newsfeed-Karten mit Titel, Zusammenfassung, Datum und Quellen-Badge
+- Filterleiste nach Quelle (CoinTelegraph, Decrypt, Bitcoin Magazine, ...)
+- Deduplizierung: gleiche Headline aus mehreren Feeds erscheint nur einmal
+- Ticker am unteren Rand (30-Sekunden-Rotation)
+- Alle 15 Minuten automatisch aktualisiert
 
 ### KI-Marktanalyse
 - Tägliche KI-generierte Marktübersicht pro Coin (Mammouth AI / Claude)
+- Cache überlebt Container-Neustarts (`config/ai_summary_cache.json`)
+- Manueller Refresh-Button (↺)
 - Konfigurierbarer Refresh-Zeitpunkt (`refresh_hour`)
-- Markdown-Rendering via marked.js
+
+### Portfolio-Verlauf
+- Stündlich gespeicherter Portfolio-Gesamtwert (`config/portfolio_history.json`)
+- SVG-Linienchart mit Zeitraumfilter: 24h / 7T / 30T / Alles
+- Statistiken: aktueller Wert, Änderung, Maximum, Minimum
 
 ## Voraussetzungen
 
@@ -56,17 +77,15 @@ Das Dashboard ist danach unter `http://<raspberry-ip>` erreichbar.
 
 ## Konfiguration
 
-Alle Einstellungen befinden sich in `config/config.json`.
-Diese Datei liegt als Bind-Mount im Container und wird bei jedem Request eingelesen.
-**Nach einer Änderung reicht ein `docker compose restart` – kein Neubauen nötig.**
+Alle Einstellungen befinden sich in `config/config.json`. Die Datei wird bei Änderung automatisch neu eingelesen (mtime-basiertes Caching) – **kein Neubauen oder Neustart nötig**.
 
 ### Felder
 
 | Feld | Pflicht | Beschreibung |
 |---|---|---|
 | `timezone` | ✓ | Zeitzone, z.B. `Europe/Berlin` |
-| `openweather.api_key` | ✓ | API-Key von [openweathermap.org](https://openweathermap.org) |
-| `openweather.city` | ✓ | Stadtname für die Wetterabfrage |
+| `openweather.api_key` | – | API-Key von [openweathermap.org](https://openweathermap.org) |
+| `openweather.city` | – | Stadtname für die Wetterabfrage |
 | `kraken.api_key` | – | Kraken API-Key (Berechtigung: Query Funds) |
 | `kraken.api_secret` | – | Kraken API-Secret |
 | `bitvavo.api_key` | – | Bitvavo API-Key (Berechtigung: View) |
@@ -78,38 +97,31 @@ Diese Datei liegt als Bind-Mount im Container und wird bei jedem Request eingele
 | `mammouth.model` | – | Modell-ID, z.B. `claude-sonnet-4-5` |
 | `mammouth.url` | – | API-Endpunkt |
 | `mammouth.refresh_hour` | – | Stunde für täglichen KI-Refresh (0–23, Default: `6`) |
-| `chart_interval` | – | Kerzen-Intervall in Minuten für Sparklines (Default: `60`). Gültige Werte: `1`, `5`, `15`, `30`, `60`, `240`, `1440`, `10080` |
+| `chart_interval` | – | Kerzen-Intervall in Minuten (Default: `60`). Gültige Werte: `1`, `5`, `15`, `30`, `60`, `240`, `1440`, `10080` |
 | `rss_feeds` | – | Liste von RSS-Feed-URLs |
 
 > `config/config.json` enthält API-Keys und ist via `.gitignore` vom Repository ausgeschlossen.
 > Nur `config/config.example.json` wird eingecheckt.
 
-## Strategie-Integration
+## Keyboard-Shortcuts
 
-Der `strategies/`-Ordner wird als Volume in den Container gemountet.
-Die Datei muss die Freqtrade-Strategie-Klasse enthalten (z.B. `StrongTrend_Retest_4H.py`).
-
-Das Dashboard:
-1. Fragt Freqtrade nach der aktiven Strategie (`/api/v1/show_config`)
-2. Sucht im `strategies/`-Ordner nach einer passenden `.py`-Datei (Dateiname oder Klassenname)
-3. Parst `populate_entry_trend()` per AST und extrahiert alle Kaufbedingungen
-4. Wertet jede Bedingung gegen die letzten Kerzen aus Freqtrade aus (`/api/v1/pair_candles`)
-5. Zeigt das Ergebnis als Ampel pro Coin und Bedingung an
-
-Bei Abweichung zwischen lokaler Datei und aktiver Freqtrade-Strategie erscheint ein Warnhinweis im Strategie-Tab.
-
-Die KI-Beschreibung der Strategie wird beim ersten Start generiert und in `/config/strategy_desc_cache.json` gecacht. Eine Neugenerierung erfolgt nur bei geändertem Strategie-Code (SHA256-Vergleich).
+| Taste | Aktion |
+|---|---|
+| `1` – `6` | Tab wechseln (Home, Strategie, Trades, News, KI, Portfolio) |
+| `R` | Aktiven Tab manuell neu laden |
 
 ## Aktualisierungsintervalle
 
 | Daten | Intervall |
 |---|---|
 | Uhrzeit | sekündlich |
-| Wetter | alle 30 Minuten |
+| Bot-Status / Trades | alle 2 Minuten |
 | Kurse & Signale | alle 5 Minuten |
-| Kontostände | alle 2 Minuten |
+| Fear & Greed / Markt-Indikatoren | alle 10–15 Minuten |
+| Newsfeed (Ticker + Tab) | alle 15 Minuten |
+| Wetter | alle 30 Minuten |
 | Strategie-Indikatoren | alle 30 Minuten |
-| Newsfeed (Ticker) | alle 15 Minuten |
+| Portfolio-Verlauf | alle 30 Minuten (Datenpunkt stündlich) |
 | KI-Marktanalyse | täglich (konfigurierbarer Zeitpunkt) |
 
 ## Projektstruktur
@@ -117,7 +129,7 @@ Die KI-Beschreibung der Strategie wird beim ersten Start generiert und in `/conf
 ```
 pi-desktop/
 ├── backend/
-│   ├── app.py              # Flask API (Wetter, Kurse, Signale, Strategie, News, KI)
+│   ├── app.py              # Flask API (alle Endpunkte)
 │   ├── requirements.txt
 │   └── Dockerfile
 ├── frontend/
@@ -128,11 +140,13 @@ pi-desktop/
 │       ├── css/style.css
 │       └── js/
 │           ├── dashboard.js
-│           └── marked.min.js   # Markdown-Rendering (lokal gebündelt)
+│           └── marked.min.js
 ├── config/
-│   ├── config.json                 # Zentrale Konfiguration (nicht im Git)
-│   ├── config.example.json         # Vorlage
-│   └── strategy_desc_cache.json    # KI-Beschreibungs-Cache (wird automatisch erstellt)
+│   ├── config.json                  # Zentrale Konfiguration (nicht im Git)
+│   ├── config.example.json          # Vorlage
+│   ├── strategy_desc_cache.json     # KI-Strategie-Cache (automatisch erstellt)
+│   ├── ai_summary_cache.json        # KI-Marktanalyse-Cache (automatisch erstellt)
+│   └── portfolio_history.json       # Portfolio-Verlauf (automatisch erstellt)
 ├── strategies/
 │   └── MeineStrategie.py   # Freqtrade-Strategie (wird automatisch erkannt)
 ├── docker-compose.yml
@@ -157,8 +171,6 @@ docker compose up -d --build
 
 # Logs anzeigen
 docker compose logs -f
-
-# Logs eines einzelnen Containers
 docker compose logs -f backend
 docker compose logs -f frontend
 ```
