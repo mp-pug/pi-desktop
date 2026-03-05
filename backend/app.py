@@ -12,7 +12,7 @@ import logging
 import urllib.parse
 import requests
 import feedparser
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 logging.basicConfig(
@@ -761,6 +761,8 @@ def get_news_full():
         for feed_url in feeds:
             try:
                 feed = feedparser.parse(feed_url)
+                source = (feed.feed.get("title") or
+                          urllib.parse.urlparse(feed_url).netloc.replace("www.", "").split(".")[0].capitalize())
                 for entry in feed.entries[:10]:
                     title = entry.get("title", "").strip()
                     if not title:
@@ -772,6 +774,7 @@ def get_news_full():
                         "summary": summary,
                         "link": entry.get("link", ""),
                         "published": entry.get("published", ""),
+                        "source": source,
                     })
             except Exception:
                 logger.warning("RSS-Feed-Fehler (full) für %s", feed_url)
@@ -871,6 +874,68 @@ def get_ai_summary():
         })
     except Exception as e:
         logger.exception("Fehler in get_ai_summary")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/ai-summary/refresh", methods=["POST"])
+def refresh_ai_summary():
+    """Setzt den KI-Cache zurück, damit er beim nächsten GET neu generiert wird."""
+    with _ai_lock:
+        _ai_cache["summary"] = None
+        _ai_cache["generated_at"] = 0
+    logger.info("KI-Cache zurückgesetzt (manueller Refresh)")
+    return jsonify({"status": "ok"})
+
+
+# ── Portfolio-Verlauf ─────────────────────────────────────────────────────────
+
+PORTFOLIO_HISTORY_PATH = os.path.join(os.path.dirname(CONFIG_PATH), "portfolio_history.json")
+_portfolio_lock = threading.Lock()
+
+
+def _load_portfolio_history():
+    try:
+        with open(PORTFOLIO_HISTORY_PATH, "r") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def _save_portfolio_history(history):
+    try:
+        with open(PORTFOLIO_HISTORY_PATH, "w") as f:
+            json.dump(history, f)
+    except Exception as e:
+        logger.warning("Portfolio-History konnte nicht gespeichert werden: %s", e)
+
+
+@app.route("/api/portfolio-history")
+def get_portfolio_history():
+    """Gibt den gespeicherten Portfolio-Verlauf zurück."""
+    with _portfolio_lock:
+        history = _load_portfolio_history()
+    return jsonify(history)
+
+
+@app.route("/api/portfolio-history/add", methods=["POST"])
+def add_portfolio_history():
+    """Speichert einen neuen Portfolio-Wert (max. 1x pro Stunde)."""
+    try:
+        data = request.get_json(silent=True) or {}
+        value = float(data.get("value", 0))
+        if value <= 0:
+            return jsonify({"error": "ungültiger Wert"}), 400
+        now = int(time.time())
+        with _portfolio_lock:
+            history = _load_portfolio_history()
+            if not history or now - history[-1][0] >= 3600:
+                history.append([now, round(value, 2)])
+                if len(history) > 720:
+                    history = history[-720:]
+                _save_portfolio_history(history)
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        logger.exception("Fehler in add_portfolio_history")
         return jsonify({"error": str(e)}), 500
 
 

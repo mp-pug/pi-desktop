@@ -221,7 +221,7 @@ html, body {
 .strategy-no-data { font-size: 0.67rem; color: var(--text-muted); text-align: center; padding: 8px 0; }
 
 /* ── NEWS ─────────────────────────────────────────────────────────────────── */
-.news-list { display: flex; flex-direction: column; gap: 5px; overflow-y: auto; height: 100%; }
+.news-list { display: flex; flex-direction: column; gap: 5px; overflow-y: auto; flex: 1; min-height: 0; }
 
 .news-card {
   background: var(--bg-card); border: 1px solid var(--border);
@@ -236,7 +236,7 @@ html, body {
 }
 .news-card-date { font-size: 0.6rem; color: var(--text-muted); margin-top: 4px; opacity: 0.7; }
 
-.news-detail { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; height: 100%; padding: 2px; }
+.news-detail { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; flex: 1; min-height: 0; padding: 2px; }
 .news-back-btn {
   align-self: flex-start; background: transparent; border: 1px solid var(--border);
   border-radius: 5px; padding: 4px 10px; font-size: 0.7rem; cursor: pointer;
@@ -366,7 +366,7 @@ html, body {
 
 /* ── Trades-Tab ───────────────────────────────────────────────────────────── */
 .trades-container {
-  display: flex; gap: 8px; height: 100%;
+  display: flex; gap: 8px; flex: 1; min-height: 0;
 }
 .trades-section {
   flex: 1; display: flex; flex-direction: column; min-height: 0;
@@ -400,3 +400,112 @@ html, body {
 .trade-profit.neg { color: var(--red); }
 .trade-meta { font-size: 0.61rem; color: var(--text-muted); }
 .trade-dates { font-size: 0.57rem; color: var(--text-muted); opacity: 0.7; }
+
+/* ── Fear & Greed ─────────────────────────────────────────────────────────── */
+.fg-block { flex: 0.55; }
+.fg-display {
+  display: flex; flex-direction: column; justify-content: center;
+  align-items: center; height: 100%; gap: 3px;
+}
+.fg-gauge { width: 100%; padding: 0 6px; }
+.fg-bar-bg { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.fg-bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
+.fg-value { font-size: 1.3rem; font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.fg-label { font-size: 0.58rem; color: var(--text-muted); text-align: center; letter-spacing: 0.02em; }
+
+/* ── Coin Icons ───────────────────────────────────────────────────────────── */
+.chart-symbol-wrap { display: flex; align-items: center; gap: 4px; }
+.coin-icon { width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; object-fit: contain; }
+
+/* ── Trade Stats ──────────────────────────────────────────────────────────── */
+.trades-stats {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  font-size: 0.62rem; color: var(--text-muted);
+  padding: 0 0 5px; border-bottom: 1px solid var(--border);
+}
+.trade-stat strong { font-weight: 700; }
+.trade-stat strong.pos { color: var(--green); }
+.trade-stat strong.neg { color: var(--red); }
+.trade-stat-sep { color: var(--border); }
+
+/* ── KI Refresh Button ────────────────────────────────────────────────────── */
+.ai-refresh-btn {
+  margin-left: auto; background: transparent;
+  border: 1px solid var(--border); border-radius: 5px;
+  padding: 3px 9px; font-size: 0.82rem; cursor: pointer;
+  color: var(--text-muted); transition: all 0.15s; flex-shrink: 0;
+}
+.ai-refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+.ai-refresh-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Bot Trade Alert ──────────────────────────────────────────────────────── */
+@keyframes bot-alert-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
+}
+.bot-trade-alert { animation: bot-alert-pulse 0.6s ease 4; }
+
+/* ── News Filter ──────────────────────────────────────────────────────────── */
+.news-filter {
+  display: flex; gap: 5px; flex-shrink: 0;
+  overflow-x: auto; padding-bottom: 3px;
+}
+.news-filter:empty { display: none; }
+.news-filter-btn {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 99px; padding: 2px 10px;
+  font-size: 0.62rem; font-weight: 500; cursor: pointer;
+  white-space: nowrap; color: var(--text-muted);
+  transition: all 0.15s; flex-shrink: 0;
+}
+.news-filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.news-filter-btn:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+
+/* ── News card source badge ───────────────────────────────────────────────── */
+.news-card-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 8px; margin-bottom: 3px;
+}
+.news-card-title { font-size: 0.76rem; font-weight: 600; color: var(--text); flex: 1; }
+.news-card-source {
+  font-size: 0.55rem; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--accent); white-space: nowrap;
+  background: rgba(76,110,245,0.1); padding: 1px 5px; border-radius: 3px;
+  flex-shrink: 0; align-self: flex-start;
+}
+
+/* ── Portfolio History Tab ────────────────────────────────────────────────── */
+.portfolio-hist-container {
+  display: flex; flex-direction: column; height: 100%; gap: 6px;
+}
+.portfolio-hist-header {
+  display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+}
+.portfolio-hist-title {
+  font-size: 0.74rem; font-weight: 600; color: var(--text-muted);
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+.portfolio-hist-range { display: flex; gap: 4px; }
+.range-btn {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 4px; padding: 2px 10px; font-size: 0.62rem; font-weight: 600;
+  cursor: pointer; color: var(--text-muted); transition: all 0.15s;
+}
+.range-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.range-btn:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+
+.portfolio-hist-chart-wrap {
+  flex: 1; min-height: 0; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px; display: flex;
+}
+.portfolio-hist-chart { width: 100%; height: 100%; }
+
+.portfolio-hist-stats {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  font-size: 0.62rem; color: var(--text-muted); padding: 2px 0;
+}
+.phist-stat strong { font-weight: 700; }
+.phist-stat strong.pos { color: var(--green); }
+.phist-stat strong.neg { color: var(--red); }
+.phist-sep { color: var(--border); }

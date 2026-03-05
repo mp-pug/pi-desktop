@@ -24,12 +24,31 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
     document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
-    // Lazy-load beim ersten Öffnen
-    if (btn.dataset.tab === "strategy" && !strategyLoaded) loadStrategy();
-    if (btn.dataset.tab === "trades"   && !tradesLoaded)   loadTrades();
-    if (btn.dataset.tab === "news"     && !newsLoaded)     loadNewsTab();
-    if (btn.dataset.tab === "ai"       && !aiLoaded)       loadAI();
+    if (btn.dataset.tab === "strategy"  && !strategyLoaded)  loadStrategy();
+    if (btn.dataset.tab === "trades"    && !tradesLoaded)    loadTrades();
+    if (btn.dataset.tab === "news"      && !newsLoaded)      loadNewsTab();
+    if (btn.dataset.tab === "ai"        && !aiLoaded)        loadAI();
+    if (btn.dataset.tab === "portfolio" && !portfolioLoaded) loadPortfolioHistory();
   });
+});
+
+// ── Keyboard-Shortcuts ────────────────────────────────────────────────────────
+const TAB_KEYS = { "1":"home","2":"strategy","3":"trades","4":"news","5":"ai","6":"portfolio" };
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+  if (TAB_KEYS[e.key]) {
+    document.querySelector(`.tab-btn[data-tab="${TAB_KEYS[e.key]}"]`)?.click();
+    return;
+  }
+  if (e.key === "r" || e.key === "R") {
+    const active = document.querySelector(".tab-btn.active")?.dataset.tab;
+    if (active === "home")      { loadCharts().then(() => loadSignals()); loadBalances(); loadFearGreed(); }
+    if (active === "strategy")  { strategyLoaded = false; loadStrategy(); }
+    if (active === "trades")    { tradesLoaded = false; loadTrades(); }
+    if (active === "news")      { newsLoaded = false; loadNewsTab(); }
+    if (active === "ai")        { aiLoaded = false; loadAI(); }
+    if (active === "portfolio") { loadPortfolioHistory(); }
+  }
 });
 
 // ── Hilfsfunktionen ───────────────────────────────────────────────────────────
@@ -57,6 +76,15 @@ function formatAmount(n) {
   return v.toLocaleString("de-DE", {minimumFractionDigits: 2, maximumFractionDigits: 8});
 }
 
+function formatDuration(openDateStr) {
+  if (!openDateStr) return "";
+  const open = new Date(openDateStr.endsWith("Z") ? openDateStr : openDateStr + "Z");
+  const diff = Math.floor((Date.now() - open.getTime()) / 1000);
+  if (diff < 3600)  return `${Math.floor(diff / 60)}min`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ${Math.floor((diff % 3600) / 60)}min`;
+  return `${Math.floor(diff / 86400)}T ${Math.floor((diff % 86400) / 3600)}h`;
+}
+
 // ── Wetter ────────────────────────────────────────────────────────────────────
 async function loadWeather() {
   const el = document.getElementById("weather");
@@ -75,6 +103,33 @@ async function loadWeather() {
   }
 }
 
+// ── Fear & Greed Index ────────────────────────────────────────────────────────
+async function loadFearGreed() {
+  const el = document.getElementById("fear-greed");
+  if (!el) return;
+  try {
+    const d = await fetchJSON("https://api.alternative.me/fng/?limit=1");
+    const item = d.data[0];
+    const val = parseInt(item.value);
+    const label = item.value_classification;
+    const color = val <= 25 ? "#dc2626"
+                : val <= 45 ? "#f97316"
+                : val <= 55 ? "#ca8a04"
+                : val <= 75 ? "#65a30d"
+                :             "#16a34a";
+    el.innerHTML = `
+      <div class="fg-gauge">
+        <div class="fg-bar-bg">
+          <div class="fg-bar-fill" style="width:${val}%;background:${color}"></div>
+        </div>
+      </div>
+      <div class="fg-value" style="color:${color}">${val}</div>
+      <div class="fg-label">${escapeHtml(label)}</div>`;
+  } catch(e) {
+    el.innerHTML = `<span style="color:#aaa;font-size:0.65rem">–</span>`;
+  }
+}
+
 // ── Sparklines (HOME) ─────────────────────────────────────────────────────────
 function sparklinePath(values, w, h) {
   if (!values || values.length < 2) return "";
@@ -88,17 +143,14 @@ function sparklinePath(values, w, h) {
   }).join(" ");
 }
 
-// Guard gegen Race Condition: verhindert dass loadSignals läuft während Charts neu gerendert werden
 let chartsRendering = false;
 
 // ── Signale ───────────────────────────────────────────────────────────────────
 async function loadSignals() {
-  // Race Condition vermeiden: nicht während Charts neu gerendert werden
   if (chartsRendering) return;
   try {
     const signals = await fetchJSON(`${API}/api/signals`);
     if (signals.error) return;
-    // Nochmals prüfen: Charts könnten während des awaits neu gerendert worden sein
     if (chartsRendering) return;
     document.querySelectorAll(".chart-card[data-symbol]").forEach(card => {
       const sig = signals[card.dataset.symbol] || "neutral";
@@ -138,7 +190,7 @@ async function loadStrategyInfo() {
     const data = await fetchJSON(`${API}/api/strategy-info`);
     if (data.error) {
       el.innerHTML = `<span class="error">${escapeHtml(data.error)}</span>`;
-      strategyInfoLoaded = false; // Retry beim nächsten Öffnen
+      strategyInfoLoaded = false;
       return;
     }
     if (data.filename) {
@@ -162,9 +214,8 @@ async function loadStrategy() {
     const data = await fetchJSON(`${API}/api/strategy`);
     if (data.error) { grid.innerHTML = `<span class="error">${escapeHtml(data.error)}</span>`; return; }
 
-    // Strategie-Mismatch-Warnung anzeigen
     if (data._warning) {
-      warningEl.textContent = `⚠ ${data._warning}`;
+      warningEl.textContent = `⚠ ${String(data._warning)}`;
       warningEl.style.display = "block";
     } else {
       warningEl.style.display = "none";
@@ -206,12 +257,14 @@ async function loadStrategy() {
       }).join("");
   } catch(e) {
     grid.innerHTML = `<span class="error">Strategie-Daten nicht verfügbar: ${e.message}</span>`;
+    strategyLoaded = false;
   }
 }
 
 // ── News-Tab ──────────────────────────────────────────────────────────────────
 let newsLoaded = false;
 let newsArticles = [];
+let newsActiveFilter = "all";
 
 async function loadNewsTab() {
   newsLoaded = true;
@@ -219,24 +272,57 @@ async function loadNewsTab() {
   try {
     newsArticles = await fetchJSON(`${API}/api/news/full`);
     if (!newsArticles.length) { list.innerHTML = `<span class="error">Keine Nachrichten</span>`; return; }
-    list.innerHTML = newsArticles.map((a, i) => `
-      <div class="news-card" data-index="${i}">
-        <div class="news-card-title">${escapeHtml(a.title)}</div>
-        <div class="news-card-summary">${escapeHtml(a.summary)}</div>
-        ${a.published ? `<div class="news-card-date">${escapeHtml(a.published)}</div>` : ""}
-      </div>`).join("");
-
-    list.querySelectorAll(".news-card").forEach(card => {
-      card.addEventListener("click", () => openArticle(parseInt(card.dataset.index)));
-    });
+    renderNewsFilter();
+    renderNewsList();
   } catch(e) {
-    list.innerHTML = `<span class="error">Nachrichten nicht verfügbar: ${e.message}</span>`;
+    if (!newsArticles.length) {
+      list.innerHTML = `<span class="error">Nachrichten nicht verfügbar: ${e.message}</span>`;
+    }
   }
+}
+
+function renderNewsFilter() {
+  const filterEl = document.getElementById("news-filter");
+  if (!filterEl) return;
+  const sources = ["all", ...new Set(newsArticles.map(a => a.source).filter(Boolean))];
+  filterEl.innerHTML = sources.map(s => `
+    <button class="news-filter-btn${s === newsActiveFilter ? " active" : ""}" data-source="${escapeHtml(s)}">
+      ${s === "all" ? "Alle" : escapeHtml(s)}
+    </button>`).join("");
+  filterEl.querySelectorAll(".news-filter-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      newsActiveFilter = btn.dataset.source;
+      filterEl.querySelectorAll(".news-filter-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      renderNewsList();
+    });
+  });
+}
+
+function renderNewsList() {
+  const list = document.getElementById("news-list");
+  const filtered = newsActiveFilter === "all"
+    ? newsArticles
+    : newsArticles.filter(a => a.source === newsActiveFilter);
+  if (!filtered.length) { list.innerHTML = `<span class="error">Keine Nachrichten für diese Quelle</span>`; return; }
+  list.innerHTML = filtered.map(a => `
+    <div class="news-card" data-index="${newsArticles.indexOf(a)}">
+      <div class="news-card-header">
+        <div class="news-card-title">${escapeHtml(a.title)}</div>
+        ${a.source ? `<span class="news-card-source">${escapeHtml(a.source)}</span>` : ""}
+      </div>
+      <div class="news-card-summary">${escapeHtml(a.summary)}</div>
+      ${a.published ? `<div class="news-card-date">${escapeHtml(a.published)}</div>` : ""}
+    </div>`).join("");
+  list.querySelectorAll(".news-card").forEach(card => {
+    card.addEventListener("click", () => openArticle(parseInt(card.dataset.index)));
+  });
 }
 
 function openArticle(i) {
   const a = newsArticles[i];
   document.getElementById("news-list").style.display = "none";
+  document.getElementById("news-filter").style.display = "none";
   const detail = document.getElementById("news-detail");
   detail.style.display = "flex";
   document.getElementById("news-detail-title").textContent   = a.title;
@@ -249,6 +335,7 @@ function openArticle(i) {
 document.getElementById("news-back-btn").addEventListener("click", () => {
   document.getElementById("news-detail").style.display = "none";
   document.getElementById("news-list").style.display = "flex";
+  document.getElementById("news-filter").style.display = "flex";
 });
 
 // ── KI-Tab ────────────────────────────────────────────────────────────────────
@@ -265,8 +352,22 @@ async function loadAI() {
     ts.textContent = data.generated_at ? `Stand: ${data.generated_at}` : "";
   } catch(e) {
     el.innerHTML = `<span class="error">KI-Zusammenfassung nicht verfügbar: ${e.message}</span>`;
+    aiLoaded = false;
   }
 }
+
+document.getElementById("ai-refresh-btn")?.addEventListener("click", async () => {
+  const btn = document.getElementById("ai-refresh-btn");
+  btn.disabled = true;
+  btn.textContent = "…";
+  try {
+    await fetch(`${API}/api/ai-summary/refresh`, { method: "POST" });
+    aiLoaded = false;
+    await loadAI();
+  } catch(e) {}
+  btn.disabled = false;
+  btn.textContent = "↺";
+});
 
 // ── RSS Ticker ────────────────────────────────────────────────────────────────
 const ticker = { headlines: [], index: 0, interval: null };
@@ -301,7 +402,6 @@ function showNextHeadline() {
 }
 
 // ── Portfolio Gesamtwert ───────────────────────────────────────────────────────
-// Speichert zuletzt geladene Kurse und Balances für die Berechnung
 let _chartPrices = {};
 let _chartChanges = {};
 let _chartPeriodLabel = "";
@@ -316,6 +416,14 @@ function formatPeriod(intervalMin, candles) {
 }
 
 const STABLE_COINS = new Set(["EUR","USDT","USDC","BUSD","DAI","TUSD"]);
+
+function savePortfolioSnapshot(value) {
+  fetch(`${API}/api/portfolio-history/add`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ value }),
+  }).catch(() => {});
+}
 
 async function loadCharts() {
   const section = document.getElementById("charts-section");
@@ -333,9 +441,14 @@ async function loadCharts() {
       const up = info.change_pct >= 0;
       const path = sparklinePath(info.sparkline, 100, 26);
       const color = up ? "#16a34a" : "#dc2626";
+      const baseCoin = symbol.split("/")[0].toLowerCase();
       return `<div class="chart-card" data-symbol="${escapeHtml(symbol)}">
         <div class="chart-header">
-          <span class="chart-symbol">${escapeHtml(symbol)}</span>
+          <div class="chart-symbol-wrap">
+            <img class="coin-icon" src="https://assets.coincap.io/assets/icons/${baseCoin}@2x.png"
+              onerror="this.style.display='none'" alt="${baseCoin}" />
+            <span class="chart-symbol">${escapeHtml(symbol.split("/")[0])}</span>
+          </div>
           <span class="chart-change ${up?"up":"down"}">${up?"+":""}${info.change_pct.toFixed(2)}%${_chartPeriodLabel ? ` <span class="chart-period">${_chartPeriodLabel}</span>` : ""}</span>
         </div>
         <div class="chart-price">${formatPrice(info.price)} €</div>
@@ -397,9 +510,13 @@ function updatePortfolioTotal() {
   el.innerHTML = `
     <div class="portfolio-value">${total.toLocaleString("de-DE", {minimumFractionDigits: 2, maximumFractionDigits: 2})} €</div>
     <div class="portfolio-change ${isUp ? "up" : "down"}">${arrow} ${sign}${diffPct.toFixed(2)}% (${sign}${diff.toLocaleString("de-DE", {minimumFractionDigits: 2, maximumFractionDigits: 2})} €)${periodSuffix}</div>`;
+
+  savePortfolioSnapshot(total);
 }
 
 // ── Bot-Status ─────────────────────────────────────────────────────────────────
+let _prevTradeCount = null;
+
 async function loadBotStatus() {
   const el = document.getElementById("bot-status");
   try {
@@ -411,6 +528,13 @@ async function loadBotStatus() {
     const running = d.state === "running";
     const dotClass = running ? "running" : "stopped";
     const stateText = running ? "Läuft" : (d.state || "Gestoppt");
+
+    if (_prevTradeCount !== null && d.open_trades != null && d.open_trades !== _prevTradeCount) {
+      el.classList.add("bot-trade-alert");
+      setTimeout(() => el.classList.remove("bot-trade-alert"), 3000);
+    }
+    if (d.open_trades != null) _prevTradeCount = d.open_trades;
+
     el.innerHTML = `
       <span class="bot-status-dot ${dotClass}"></span>
       <span class="bot-status-text">${escapeHtml(stateText)}</span>
@@ -443,13 +567,14 @@ function renderTrade(t) {
   const sellRate = typeof t.close_rate === "number" ? formatPrice(t.close_rate) : (typeof t.current_rate === "number" ? formatPrice(t.current_rate) : "–");
   const openDate  = formatTradeDate(t.open_date);
   const closeDate = t.close_date ? formatTradeDate(t.close_date) : "";
+  const duration  = t.is_open ? ` · ${formatDuration(t.open_date)}` : "";
   return `<div class="trade-card ${cardClass}">
     <div class="trade-header">
       <span class="trade-pair">${escapeHtml(t.pair || "–")}</span>
       <span class="trade-profit ${profitClass}">${profitStr}</span>
     </div>
     <div class="trade-meta">Kauf: ${buyRate} € → ${t.is_open ? "Aktuell" : "Verkauf"}: ${sellRate} €</div>
-    <div class="trade-dates">${openDate}${closeDate ? " · " + closeDate : ""}</div>
+    <div class="trade-dates">${openDate}${closeDate ? " · " + closeDate : ""}${duration}</div>
   </div>`;
 }
 
@@ -457,6 +582,7 @@ async function loadTrades() {
   tradesLoaded = true;
   const openEl   = document.getElementById("open-trades-list");
   const closedEl = document.getElementById("closed-trades-list");
+  const statsEl  = document.getElementById("trades-stats");
   try {
     const data = await fetchJSON(`${API}/api/trades`);
     if (data.error) {
@@ -467,28 +593,155 @@ async function loadTrades() {
     const closed = data.closed || [];
     openEl.innerHTML   = open.length   ? open.map(renderTrade).join("")   : `<span class="loading">Keine offenen Trades</span>`;
     closedEl.innerHTML = closed.length ? closed.map(renderTrade).join("") : `<span class="loading">Keine abgeschlossenen Trades</span>`;
+
+    if (statsEl && closed.length) {
+      const wins = closed.filter(t => t.profit_pct >= 0).length;
+      const winRate = ((wins / closed.length) * 100).toFixed(0);
+      const totalPnl = closed.reduce((s, t) => s + (t.profit_abs || 0), 0);
+      const isPos = totalPnl >= 0;
+      statsEl.innerHTML = `
+        <span class="trade-stat">Win-Rate: <strong>${winRate}%</strong></span>
+        <span class="trade-stat-sep">·</span>
+        <span class="trade-stat">Gesamt P&L: <strong class="${isPos?"pos":"neg"}">${isPos?"+":""}${totalPnl.toFixed(2)} €</strong></span>
+        <span class="trade-stat-sep">·</span>
+        <span class="trade-stat">${closed.length} Trades</span>`;
+    }
   } catch(e) {
     openEl.innerHTML = closedEl.innerHTML = `<span class="error">Nicht verfügbar: ${e.message}</span>`;
     tradesLoaded = false;
   }
 }
 
+// ── Portfolio-Verlauf Tab ─────────────────────────────────────────────────────
+let portfolioLoaded = false;
+let portfolioData = [];
+let portfolioRange = "7d";
+
+async function loadPortfolioHistory() {
+  portfolioLoaded = true;
+  const svg = document.getElementById("portfolio-hist-chart");
+  try {
+    portfolioData = await fetchJSON(`${API}/api/portfolio-history`);
+    renderPortfolioChart();
+  } catch(e) {
+    if (svg) svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#aaa" font-size="11">Nicht verfügbar: ${e.message}</text>`;
+    portfolioLoaded = false;
+  }
+}
+
+function renderPortfolioChart() {
+  const svg    = document.getElementById("portfolio-hist-chart");
+  const statsEl = document.getElementById("portfolio-hist-stats");
+  if (!svg) return;
+
+  const now = Date.now() / 1000;
+  const cutoff = portfolioRange === "24h" ? now - 86400
+               : portfolioRange === "7d"  ? now - 604800
+               : portfolioRange === "30d" ? now - 2592000
+               : 0;
+  const data = cutoff > 0 ? portfolioData.filter(([ts]) => ts >= cutoff) : portfolioData;
+
+  if (data.length < 2) {
+    svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#aaa" font-size="11">Nicht genug Daten (${data.length} Einträge)</text>`;
+    if (statsEl) statsEl.innerHTML = "";
+    return;
+  }
+
+  const W = 760, H = 220;
+  const PAD = { t: 10, r: 10, b: 28, l: 64 };
+  const cW = W - PAD.l - PAD.r;
+  const cH = H - PAD.t - PAD.b;
+
+  const values = data.map(([, v]) => v);
+  const times  = data.map(([ts]) => ts);
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const rangeV = maxV - minV || 1;
+  const minT = times[0], maxT = times[times.length - 1];
+
+  const toX = ts => PAD.l + ((ts - minT) / (maxT - minT || 1)) * cW;
+  const toY = v  => PAD.t + cH - ((v - minV) / rangeV) * cH;
+
+  const linePath = data.map(([ts, v], i) => `${i === 0 ? "M" : "L"}${toX(ts).toFixed(1)},${toY(v).toFixed(1)}`).join(" ");
+  const areaPath = linePath
+    + ` L${toX(maxT).toFixed(1)},${(PAD.t + cH).toFixed(1)}`
+    + ` L${toX(minT).toFixed(1)},${(PAD.t + cH).toFixed(1)} Z`;
+
+  const lastVal  = values[values.length - 1];
+  const firstVal = values[0];
+  const isUp     = lastVal >= firstVal;
+  const stroke   = isUp ? "#16a34a" : "#dc2626";
+  const fill     = isUp ? "rgba(22,163,74,0.08)" : "rgba(220,38,38,0.08)";
+
+  // Y-axis: 3 levels
+  const yTicks = [minV, minV + rangeV * 0.5, maxV];
+  const gridLines = yTicks.map(v =>
+    `<line x1="${PAD.l}" y1="${toY(v).toFixed(1)}" x2="${W - PAD.r}" y2="${toY(v).toFixed(1)}" stroke="var(--border)" stroke-width="0.5"/>`
+  ).join("");
+  const yLabels = yTicks.map(v =>
+    `<text x="${PAD.l - 4}" y="${toY(v).toFixed(1)}" text-anchor="end" dominant-baseline="middle" fill="var(--text-muted)" font-size="9">${v.toLocaleString("de-DE",{maximumFractionDigits:0})} €</text>`
+  ).join("");
+
+  // X-axis: 4 labels
+  const xLabels = Array.from({length: 4}, (_, i) => {
+    const ts = minT + (maxT - minT) * (i / 3);
+    const d  = new Date(ts * 1000);
+    return `<text x="${toX(ts).toFixed(1)}" y="${H - 4}" text-anchor="middle" fill="var(--text-muted)" font-size="9">${d.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit"})}</text>`;
+  }).join("");
+
+  const curY = toY(lastVal);
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = `
+    ${gridLines}
+    ${yLabels}
+    ${xLabels}
+    <path d="${areaPath}" fill="${fill}" stroke="none"/>
+    <path d="${linePath}" fill="none" stroke="${stroke}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <line x1="${PAD.l}" y1="${curY.toFixed(1)}" x2="${W - PAD.r}" y2="${curY.toFixed(1)}" stroke="${stroke}" stroke-width="0.5" stroke-dasharray="3,3" opacity="0.5"/>
+    <circle cx="${toX(maxT).toFixed(1)}" cy="${curY.toFixed(1)}" r="3" fill="${stroke}"/>`;
+
+  if (statsEl) {
+    const change    = lastVal - firstVal;
+    const changePct = firstVal > 0 ? ((change / firstVal) * 100).toFixed(2) : "0.00";
+    const sign      = change >= 0 ? "+" : "";
+    const cls       = change >= 0 ? "pos" : "neg";
+    statsEl.innerHTML = `
+      <span class="phist-stat">Aktuell: <strong>${lastVal.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})} €</strong></span>
+      <span class="phist-sep">·</span>
+      <span class="phist-stat">Änderung: <strong class="${cls}">${sign}${change.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})} € (${sign}${changePct}%)</strong></span>
+      <span class="phist-sep">·</span>
+      <span class="phist-stat">Max: ${maxV.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})} €</span>
+      <span class="phist-sep">·</span>
+      <span class="phist-stat">Min: ${minV.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})} €</span>`;
+  }
+}
+
+document.querySelectorAll(".range-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".range-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    portfolioRange = btn.dataset.range;
+    renderPortfolioChart();
+  });
+});
+
 // ── Start & Intervalle ────────────────────────────────────────────────────────
-// Interval-IDs gespeichert, damit sie ggf. bereinigt werden können
 const intervals = {};
 
 loadWeather();
+loadFearGreed();
 loadCharts().then(() => loadSignals());
 loadBalances();
 loadTicker();
 loadBotStatus();
 
-// Signals werden nach Charts geladen (chain) – kein separater Interval nötig,
-// um Race Conditions beim DOM-Neuaufbau zu vermeiden.
-intervals.weather    = setInterval(loadWeather,   30 * 60 * 1000);
-intervals.charts     = setInterval(() => loadCharts().then(() => loadSignals()),  5 * 60 * 1000);
-intervals.balances   = setInterval(loadBalances,   2 * 60 * 1000);
-intervals.ticker     = setInterval(loadTicker,    15 * 60 * 1000);
-intervals.strategy   = setInterval(() => { if (strategyLoaded) loadStrategy(); }, 30 * 60 * 1000);
-intervals.botStatus  = setInterval(loadBotStatus,  2 * 60 * 1000);
-intervals.trades     = setInterval(() => { if (tradesLoaded) loadTrades(); },     2 * 60 * 1000);
+intervals.weather   = setInterval(loadWeather,   30 * 60 * 1000);
+intervals.fearGreed = setInterval(loadFearGreed, 15 * 60 * 1000);
+intervals.charts    = setInterval(() => loadCharts().then(() => loadSignals()),  5 * 60 * 1000);
+intervals.balances  = setInterval(loadBalances,   2 * 60 * 1000);
+intervals.ticker    = setInterval(loadTicker,    15 * 60 * 1000);
+intervals.strategy  = setInterval(() => { if (strategyLoaded)  loadStrategy(); },          30 * 60 * 1000);
+intervals.botStatus = setInterval(loadBotStatus,  2 * 60 * 1000);
+intervals.trades    = setInterval(() => { if (tradesLoaded)    loadTrades(); },             2 * 60 * 1000);
+intervals.news      = setInterval(() => { if (newsLoaded)      loadNewsTab(); },           15 * 60 * 1000);
+intervals.portfolio = setInterval(() => { if (portfolioLoaded) loadPortfolioHistory(); }, 30 * 60 * 1000);

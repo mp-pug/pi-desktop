@@ -26,6 +26,7 @@
       <button class="tab-btn" data-tab="trades">Trades</button>
       <button class="tab-btn" data-tab="news">News</button>
       <button class="tab-btn" data-tab="ai">KI</button>
+      <button class="tab-btn" data-tab="portfolio">Portfolio</button>
     </nav>
   </header>
 
@@ -55,6 +56,12 @@
         </h3>
         <div id="bitvavo-balances" class="balance-list"></div>
       </div>
+      <div class="exchange-block fg-block">
+        <h3 class="exchange-title">Sentiment</h3>
+        <div id="fear-greed" class="fg-display">
+          <div class="loading" style="font-size:0.65rem">–</div>
+        </div>
+      </div>
       <div class="exchange-block portfolio-block">
         <h3 class="exchange-title">Gesamt</h3>
         <div id="portfolio-total" class="portfolio-total">
@@ -66,34 +73,26 @@
 
   <!-- TAB: STRATEGIE -->
   <div class="tab-content" id="tab-strategy">
-
-    <!-- Kopfzeile mit Info-Button -->
     <div class="strategy-header">
       <span class="strategy-header-title" id="strategy-name">Strategie</span>
       <button class="strategy-info-btn" id="strategy-info-btn" title="Strategie-Beschreibung">
         &#9432; Strategie-Info
       </button>
     </div>
-
-    <!-- Aufklappbare Infobox -->
     <div class="strategy-infobox" id="strategy-infobox" style="display:none">
       <div class="strategy-infobox-content" id="strategy-infobox-content">
         <div class="loading">Lade Beschreibung...</div>
       </div>
     </div>
-
-    <!-- Strategie-Mismatch-Warnung -->
     <div class="strategy-warning" id="strategy-warning" style="display:none"></div>
-
-    <!-- Indikator-Kacheln -->
     <div class="strategy-grid" id="strategy-grid">
       <div class="loading">Lade Strategie-Daten...</div>
     </div>
-
   </div>
 
   <!-- TAB: TRADES -->
   <div class="tab-content" id="tab-trades">
+    <div id="trades-stats" class="trades-stats"></div>
     <div class="trades-container">
       <section class="trades-section">
         <h3 class="trades-section-title">Offene Trades</h3>
@@ -112,6 +111,7 @@
 
   <!-- TAB: NEWS -->
   <div class="tab-content" id="tab-news">
+    <div class="news-filter" id="news-filter"></div>
     <div class="news-list" id="news-list">
       <div class="loading">Lade Nachrichten...</div>
     </div>
@@ -129,10 +129,32 @@
       <div class="ai-header">
         <h2 class="ai-title">KI-Marktanalyse</h2>
         <span class="ai-timestamp" id="ai-timestamp"></span>
+        <button class="ai-refresh-btn" id="ai-refresh-btn" title="Neu generieren">↺</button>
       </div>
       <div class="ai-summary" id="ai-summary">
         <div class="loading">Generiere Zusammenfassung...</div>
       </div>
+    </div>
+  </div>
+
+  <!-- TAB: PORTFOLIO -->
+  <div class="tab-content" id="tab-portfolio">
+    <div class="portfolio-hist-container">
+      <div class="portfolio-hist-header">
+        <span class="portfolio-hist-title">Portfolio-Verlauf</span>
+        <div class="portfolio-hist-range">
+          <button class="range-btn" data-range="24h">24h</button>
+          <button class="range-btn active" data-range="7d">7T</button>
+          <button class="range-btn" data-range="30d">30T</button>
+          <button class="range-btn" data-range="all">Alles</button>
+        </div>
+      </div>
+      <div class="portfolio-hist-chart-wrap">
+        <svg class="portfolio-hist-chart" id="portfolio-hist-chart" preserveAspectRatio="none">
+          <text x="50%" y="50%" text-anchor="middle" fill="#aaa" font-size="11">Tab öffnen um Verlauf zu laden</text>
+        </svg>
+      </div>
+      <div class="portfolio-hist-stats" id="portfolio-hist-stats"></div>
     </div>
   </div>
 
