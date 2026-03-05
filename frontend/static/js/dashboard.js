@@ -42,7 +42,7 @@ document.addEventListener("keydown", e => {
   }
   if (e.key === "r" || e.key === "R") {
     const active = document.querySelector(".tab-btn.active")?.dataset.tab;
-    if (active === "home")      { loadCharts().then(() => loadSignals()); loadBalances(); loadFearGreed(); }
+    if (active === "home")      { loadCharts().then(() => loadSignals()); loadBalances(); loadFearGreed(); loadMarketIndicators(); }
     if (active === "strategy")  { strategyLoaded = false; loadStrategy(); }
     if (active === "trades")    { tradesLoaded = false; loadTrades(); }
     if (active === "news")      { newsLoaded = false; loadNewsTab(); }
@@ -725,18 +725,105 @@ document.querySelectorAll(".range-btn").forEach(btn => {
   });
 });
 
+// ── Markt-Indikatoren ─────────────────────────────────────────────────────────
+async function loadMarketIndicators() {
+  loadBtcDominance();
+  loadFundingRate();
+  loadLongShortRatio();
+  loadMempoolFees();
+}
+
+async function loadBtcDominance() {
+  const el = document.getElementById("ind-btc-dom");
+  if (!el) return;
+  try {
+    const d = await fetchJSON("https://api.coingecko.com/api/v3/global");
+    const dom = d.data.market_cap_percentage.btc;
+    const pct = dom.toFixed(1);
+    const color = dom > 55 ? "#f97316" : dom > 45 ? "#ca8a04" : "#4c6ef5";
+    const label = dom > 55 ? "BTC Season" : dom < 45 ? "Alt Season" : "Neutral";
+    el.innerHTML = `
+      <div class="ind-value" style="color:${color}">${pct}<span class="ind-unit">%</span></div>
+      <div class="ind-bar-bg"><div class="ind-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+      <div class="ind-sub">${label}</div>`;
+  } catch(e) { el.innerHTML = `<span class="ind-error">–</span>`; }
+}
+
+async function loadFundingRate() {
+  const el = document.getElementById("ind-funding");
+  if (!el) return;
+  try {
+    const d = await fetchJSON("https://fapi.binance.com/fapi/v1/fundingRate?symbol=BTCUSDT&limit=1");
+    const rate = parseFloat(d[0].fundingRate) * 100;
+    const isPos = rate >= 0;
+    const color = isPos ? "#16a34a" : "#dc2626";
+    const sign = isPos ? "+" : "";
+    const barPct = Math.min(Math.abs(rate) / 0.075 * 50, 50);
+    const label = isPos ? "Longs zahlen" : "Shorts zahlen";
+    el.innerHTML = `
+      <div class="ind-value" style="color:${color}">${sign}${rate.toFixed(4)}<span class="ind-unit">%</span></div>
+      <div class="ind-funding-wrap">
+        <div class="ind-funding-fill" style="${isPos ? `left:50%;` : `right:50%;`}width:${barPct}%;background:${color}"></div>
+      </div>
+      <div class="ind-sub">${label}</div>`;
+  } catch(e) { el.innerHTML = `<span class="ind-error">–</span>`; }
+}
+
+async function loadLongShortRatio() {
+  const el = document.getElementById("ind-ls-ratio");
+  if (!el) return;
+  try {
+    const d = await fetchJSON("https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=BTCUSDT&period=5m&limit=1");
+    const longPct  = (parseFloat(d[0].longAccount)  * 100).toFixed(1);
+    const shortPct = (parseFloat(d[0].shortAccount) * 100).toFixed(1);
+    el.innerHTML = `
+      <div class="ind-ls-nums">
+        <span style="color:#16a34a">${longPct}%</span>
+        <span style="color:#dc2626">${shortPct}%</span>
+      </div>
+      <div class="ind-ls-bar">
+        <div style="width:${longPct}%;background:#16a34a"></div>
+        <div style="width:${shortPct}%;background:#dc2626"></div>
+      </div>
+      <div class="ind-sub">Long &nbsp;·&nbsp; Short</div>`;
+  } catch(e) { el.innerHTML = `<span class="ind-error">–</span>`; }
+}
+
+async function loadMempoolFees() {
+  const el = document.getElementById("ind-mempool");
+  if (!el) return;
+  try {
+    const d = await fetchJSON("https://mempool.space/api/v1/fees/recommended");
+    const fees = [d.hourFee, d.halfHourFee, d.fastestFee];
+    const labels = ["Low", "Mid", "Fast"];
+    const color = f => f <= 10 ? "#16a34a" : f <= 40 ? "#ca8a04" : "#dc2626";
+    el.innerHTML = `
+      <div class="ind-mempool-fees">
+        ${fees.map((f, i) => `
+          <div class="ind-fee-item">
+            <span class="ind-fee-dot" style="background:${color(f)}"></span>
+            <span class="ind-fee-val">${f}</span>
+            <span class="ind-fee-lbl">${labels[i]}</span>
+          </div>`).join("")}
+      </div>
+      <div class="ind-sub">sat / vByte</div>`;
+  } catch(e) { el.innerHTML = `<span class="ind-error">–</span>`; }
+}
+
 // ── Start & Intervalle ────────────────────────────────────────────────────────
 const intervals = {};
 
 loadWeather();
 loadFearGreed();
+loadMarketIndicators();
 loadCharts().then(() => loadSignals());
 loadBalances();
 loadTicker();
 loadBotStatus();
 
-intervals.weather   = setInterval(loadWeather,   30 * 60 * 1000);
-intervals.fearGreed = setInterval(loadFearGreed, 15 * 60 * 1000);
+intervals.weather    = setInterval(loadWeather,          30 * 60 * 1000);
+intervals.fearGreed  = setInterval(loadFearGreed,        15 * 60 * 1000);
+intervals.indicators = setInterval(loadMarketIndicators, 10 * 60 * 1000);
 intervals.charts    = setInterval(() => loadCharts().then(() => loadSignals()),  5 * 60 * 1000);
 intervals.balances  = setInterval(loadBalances,   2 * 60 * 1000);
 intervals.ticker    = setInterval(loadTicker,    15 * 60 * 1000);
