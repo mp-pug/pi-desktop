@@ -304,7 +304,16 @@ function showNextHeadline() {
 // Speichert zuletzt geladene Kurse und Balances für die Berechnung
 let _chartPrices = {};
 let _chartChanges = {};
+let _chartPeriodLabel = "";
 let _balanceAmounts = {};
+
+function formatPeriod(intervalMin, candles) {
+  const total = intervalMin * candles;
+  if (total < 60) return `${total}min`;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return m === 0 ? `${h}h` : `${h}h${m}m`;
+}
 
 const STABLE_COINS = new Set(["EUR","USDT","USDC","BUSD","DAI","TUSD"]);
 
@@ -315,7 +324,9 @@ async function loadCharts() {
     const data = await fetchJSON(`${API}/api/charts`);
     _chartPrices = {};
     _chartChanges = {};
-    section.innerHTML = Object.entries(data).map(([symbol, info]) => {
+    const meta = data._meta || {};
+    _chartPeriodLabel = meta.interval ? formatPeriod(meta.interval, meta.candles || 25) : "";
+    section.innerHTML = Object.entries(data).filter(([s]) => s !== "_meta").map(([symbol, info]) => {
       if (info.error) return `<div class="chart-card" data-symbol="${symbol}"><div class="chart-symbol">${symbol}</div><div class="error">-</div></div>`;
       _chartPrices[symbol] = info.price;
       _chartChanges[symbol] = info.change_pct;
@@ -325,7 +336,7 @@ async function loadCharts() {
       return `<div class="chart-card" data-symbol="${escapeHtml(symbol)}">
         <div class="chart-header">
           <span class="chart-symbol">${escapeHtml(symbol)}</span>
-          <span class="chart-change ${up?"up":"down"}">${up?"+":""}${info.change_pct.toFixed(2)}%</span>
+          <span class="chart-change ${up?"up":"down"}">${up?"+":""}${info.change_pct.toFixed(2)}%${_chartPeriodLabel ? ` <span class="chart-period">${_chartPeriodLabel}</span>` : ""}</span>
         </div>
         <div class="chart-price">${formatPrice(info.price)} €</div>
         <svg class="chart-sparkline" viewBox="0 0 100 26" preserveAspectRatio="none">
@@ -382,9 +393,10 @@ function updatePortfolioTotal() {
   const arrow = isUp ? "▲" : "▼";
   const sign  = isUp ? "+" : "";
 
+  const periodSuffix = _chartPeriodLabel ? ` · ${_chartPeriodLabel}` : "";
   el.innerHTML = `
     <div class="portfolio-value">${total.toLocaleString("de-DE", {minimumFractionDigits: 2, maximumFractionDigits: 2})} €</div>
-    <div class="portfolio-change ${isUp ? "up" : "down"}">${arrow} ${sign}${diffPct.toFixed(2)}% (${sign}${diff.toLocaleString("de-DE", {minimumFractionDigits: 2, maximumFractionDigits: 2})} €)</div>`;
+    <div class="portfolio-change ${isUp ? "up" : "down"}">${arrow} ${sign}${diffPct.toFixed(2)}% (${sign}${diff.toLocaleString("de-DE", {minimumFractionDigits: 2, maximumFractionDigits: 2})} €)${periodSuffix}</div>`;
 }
 
 // ── Bot-Status ─────────────────────────────────────────────────────────────────

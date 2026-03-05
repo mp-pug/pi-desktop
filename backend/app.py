@@ -308,8 +308,8 @@ def get_charts():
                 ohlc = list(data["result"].values())[0]
                 closes = [float(c[4]) for c in ohlc[-25:]]
                 current = closes[-1]
-                open_24h = closes[0]
-                change_pct = ((current - open_24h) / open_24h * 100) if open_24h else 0
+                open_period = closes[0]
+                change_pct = ((current - open_period) / open_period * 100) if open_period else 0
                 result[symbol] = {
                     "price": current,
                     "change_pct": round(change_pct, 2),
@@ -318,6 +318,7 @@ def get_charts():
             except Exception as e:
                 logger.warning("Chart-Fehler für %s: %s", symbol, e)
                 result[symbol] = {"error": str(e)}
+        result["_meta"] = {"interval": cfg.get("chart_interval", 60), "candles": 25}
         logger.info("Charts geladen: %d Coins", len(result))
         return jsonify(result)
     except Exception as e:
