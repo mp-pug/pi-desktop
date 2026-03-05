@@ -75,7 +75,7 @@ html, body {
   background: transparent;
   border: none;
   border-right: 1px solid var(--border);
-  color: var(--text-muted);
+  color: #fff;
   padding: 0;
   font-size: 0.76rem;
   font-weight: 600;
