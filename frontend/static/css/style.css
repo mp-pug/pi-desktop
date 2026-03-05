@@ -51,17 +51,17 @@ html, body {
   line-height: 1.1; white-space: nowrap;
   letter-spacing: 0.03em;
 }
-.date { font-size: 0.59rem; color: var(--text-muted); white-space: nowrap; letter-spacing: 0.04em; }
+.date { font-size: 0.59rem; color: #c0c8d8; white-space: nowrap; letter-spacing: 0.04em; }
 
 .topbar-weather {
   display: flex; align-items: center; gap: 6px;
   flex: 1; min-width: 0; overflow: hidden;
 }
 .weather-icon { width: 20px; height: 20px; flex-shrink: 0; }
-.weather-temp { font-size: 0.88rem; font-weight: 400; color: var(--text); white-space: nowrap; }
+.weather-temp { font-size: 0.88rem; font-weight: 400; color: #fff; white-space: nowrap; }
 .weather-details { display: flex; flex-direction: column; gap: 0; min-width: 0; }
-.weather-city { font-size: 0.6rem; color: #6ba3f7; font-weight: 500; white-space: nowrap; }
-.weather-desc { font-size: 0.58rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.weather-city { font-size: 0.6rem; color: #93c5fd; font-weight: 500; white-space: nowrap; }
+.weather-desc { font-size: 0.58rem; color: #c0c8d8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .weather-meta { display: none; }
 
 /* ── Tab-Navigation ───────────────────────────────────────────────────────── */
@@ -275,7 +275,7 @@ html, body {
 }
 .ticker-wrapper { flex: 1; overflow: hidden; height: 100%; display: flex; align-items: center; padding: 0 12px; }
 .ticker-headline {
-  color: var(--text); font-size: 0.69rem; white-space: nowrap;
+  color: #dde1ee; font-size: 0.69rem; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
   opacity: 0; transition: opacity 0.8s ease;
 }

@@ -33,6 +33,9 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+    volumes:
+      - ./frontend/static:/usr/share/nginx/html/static
+      - ./frontend/index.html:/usr/share/nginx/html/index.html
     depends_on:
       backend:
         condition: service_healthy
