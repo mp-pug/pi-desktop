@@ -27,6 +27,7 @@
       <button class="tab-btn" data-tab="news">News</button>
       <button class="tab-btn" data-tab="ai">KI</button>
       <button class="tab-btn" data-tab="portfolio">Portfolio</button>
+      <button class="tab-btn" data-tab="trends">Trends</button>
     </nav>
   </header>
 
@@ -51,6 +52,10 @@
       <div class="ind-card">
         <div class="ind-title">Mempool Fees</div>
         <div class="ind-body" id="ind-mempool"><span class="loading">–</span></div>
+      </div>
+      <div class="ind-card ind-movers-card">
+        <div class="ind-title">Top Movers · 24h</div>
+        <div class="ind-body" id="ind-top-movers"><span class="loading">–</span></div>
       </div>
     </section>
     <section class="balances-section">
@@ -173,6 +178,19 @@
         </svg>
       </div>
       <div class="portfolio-hist-stats" id="portfolio-hist-stats"></div>
+    </div>
+  </div>
+
+  <!-- TAB: TRENDS -->
+  <div class="tab-content" id="tab-trends">
+    <div class="trends-container">
+      <div class="trends-header">
+        <span class="trends-title">Trending Coins</span>
+        <span class="trends-meta">Meistgesuchte Coins auf CoinGecko &nbsp;·&nbsp; Stand: <span id="trends-updated">–</span></span>
+      </div>
+      <div class="trends-grid" id="trends-grid">
+        <div class="loading">Lade Trending-Daten...</div>
+      </div>
     </div>
   </div>
 

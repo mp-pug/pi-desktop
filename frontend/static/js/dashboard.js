@@ -29,11 +29,12 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
     if (btn.dataset.tab === "news"      && !newsLoaded)      loadNewsTab();
     if (btn.dataset.tab === "ai"        && !aiLoaded)        loadAI();
     if (btn.dataset.tab === "portfolio" && !portfolioLoaded) loadPortfolioHistory();
+    if (btn.dataset.tab === "trends"    && !trendsLoaded)    loadTrending();
   });
 });
 
 // ── Keyboard-Shortcuts ────────────────────────────────────────────────────────
-const TAB_KEYS = { "1":"home","2":"strategy","3":"trades","4":"news","5":"ai","6":"portfolio" };
+const TAB_KEYS = { "1":"home","2":"strategy","3":"trades","4":"news","5":"ai","6":"portfolio","7":"trends" };
 document.addEventListener("keydown", e => {
   if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
   if (TAB_KEYS[e.key]) {
@@ -48,6 +49,7 @@ document.addEventListener("keydown", e => {
     if (active === "news")      { newsLoaded = false; loadNewsTab(); }
     if (active === "ai")        { aiLoaded = false; loadAI(); }
     if (active === "portfolio") { loadPortfolioHistory(); }
+    if (active === "trends")    { loadTrending(); }
   }
 });
 
@@ -725,12 +727,101 @@ document.querySelectorAll(".range-btn").forEach(btn => {
   });
 });
 
+// ── Top Movers ────────────────────────────────────────────────────────────────
+const EXCLUDED_BASES = new Set([
+  "USDC","BUSD","DAI","TUSD","USDP","FDUSD","USDD","UST","USDB",
+  "EUR","GBP","TRY","BRL","AUD","BTC", // BTC excluded — already shown in charts
+]);
+
+async function loadTopMovers() {
+  const el = document.getElementById("ind-top-movers");
+  if (!el) return;
+  try {
+    const data = await fetchJSON("https://api.binance.com/api/v3/ticker/24hr?type=MINI");
+    const movers = data
+      .filter(t => {
+        if (!t.symbol.endsWith("USDT")) return false;
+        const base = t.symbol.slice(0, -4);
+        if (EXCLUDED_BASES.has(base)) return false;
+        if (/UP$|DOWN$|3L$|3S$|BEAR$|BULL$/.test(base)) return false;
+        if (parseFloat(t.quoteVolume) < 1000000) return false;
+        return true;
+      })
+      .map(t => ({
+        sym: t.symbol.slice(0, -4),
+        chg: ((parseFloat(t.lastPrice) - parseFloat(t.openPrice)) / parseFloat(t.openPrice)) * 100,
+      }))
+      .sort((a, b) => b.chg - a.chg);
+
+    const gainers = movers.slice(0, 3);
+    const losers  = movers.slice(-3).reverse();
+
+    const row = (t, cls) =>
+      `<div class="mover-row">
+        <span class="mover-sym">${escapeHtml(t.sym)}</span>
+        <span class="mover-chg ${cls}">${cls === "pos" ? "+" : ""}${t.chg.toFixed(1)}%</span>
+      </div>`;
+
+    el.innerHTML = `
+      <div class="movers-cols">
+        <div class="movers-col">${gainers.map(t => row(t, "pos")).join("")}</div>
+        <div class="movers-col">${losers.map(t  => row(t, "neg")).join("")}</div>
+      </div>`;
+  } catch(e) { el.innerHTML = `<span class="ind-error">–</span>`; }
+}
+
+// ── Trending Coins Tab ────────────────────────────────────────────────────────
+let trendsLoaded = false;
+
+async function loadTrending() {
+  trendsLoaded = true;
+  const grid      = document.getElementById("trends-grid");
+  const updatedEl = document.getElementById("trends-updated");
+  try {
+    const data  = await fetchJSON("https://api.coingecko.com/api/v3/search/trending");
+    const coins = data.coins.map(c => c.item);
+
+    if (updatedEl) {
+      updatedEl.textContent = new Date().toLocaleTimeString("de-DE", {hour:"2-digit", minute:"2-digit"});
+    }
+
+    grid.innerHTML = coins.map((coin, i) => {
+      const chg    = coin.data?.price_change_percentage_24h?.usd ?? null;
+      const isUp   = chg != null && chg >= 0;
+      const chgStr = chg != null ? `${isUp ? "+" : ""}${chg.toFixed(2)}%` : "–";
+      const price  = coin.data?.price ?? "–";
+      const mcap   = coin.data?.market_cap ?? "";
+
+      return `<div class="trend-card">
+        <div class="trend-top">
+          <span class="trend-rank">#${i + 1}</span>
+          <img class="trend-icon" src="${escapeHtml(coin.large)}"
+            onerror="this.src='${escapeHtml(coin.thumb)}'" alt="${escapeHtml(coin.symbol)}" />
+          <div class="trend-names">
+            <span class="trend-name">${escapeHtml(coin.name)}</span>
+            <span class="trend-symbol">${escapeHtml(coin.symbol.toUpperCase())}</span>
+          </div>
+        </div>
+        <div class="trend-bottom">
+          <span class="trend-price">${escapeHtml(String(price))}</span>
+          <span class="trend-chg ${chg != null ? (isUp ? "up" : "down") : ""}">${chgStr}</span>
+        </div>
+        ${mcap ? `<div class="trend-mcap">${escapeHtml(String(mcap))}</div>` : ""}
+      </div>`;
+    }).join("");
+  } catch(e) {
+    grid.innerHTML = `<span class="error">Trending-Daten nicht verfügbar: ${e.message}</span>`;
+    trendsLoaded = false;
+  }
+}
+
 // ── Markt-Indikatoren ─────────────────────────────────────────────────────────
 async function loadMarketIndicators() {
   loadBtcDominance();
   loadFundingRate();
   loadLongShortRatio();
   loadMempoolFees();
+  loadTopMovers();
 }
 
 async function loadBtcDominance() {
@@ -832,3 +923,4 @@ intervals.botStatus = setInterval(loadBotStatus,  2 * 60 * 1000);
 intervals.trades    = setInterval(() => { if (tradesLoaded)    loadTrades(); },             2 * 60 * 1000);
 intervals.news      = setInterval(() => { if (newsLoaded)      loadNewsTab(); },           15 * 60 * 1000);
 intervals.portfolio = setInterval(() => { if (portfolioLoaded) loadPortfolioHistory(); }, 30 * 60 * 1000);
+intervals.trends    = setInterval(() => { if (trendsLoaded)    loadTrending(); },          15 * 60 * 1000);

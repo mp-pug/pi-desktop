@@ -590,3 +590,96 @@ html, body {
   color: var(--text); line-height: 1.1;
 }
 .ind-fee-lbl { font-size: 0.5rem; color: var(--text-muted); }
+
+/* ── Top Movers Kachel ────────────────────────────────────────────────────── */
+.ind-movers-card { flex: 1.6; }
+
+.movers-cols {
+  display: flex; gap: 6px; flex: 1;
+}
+.movers-col { display: flex; flex-direction: column; gap: 1px; flex: 1; }
+
+.mover-row {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 4px;
+}
+.mover-sym {
+  font-size: 0.62rem; font-weight: 700; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mover-chg {
+  font-size: 0.62rem; font-weight: 600; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.mover-chg.pos { color: var(--green); }
+.mover-chg.neg { color: var(--red); }
+
+/* ── Trending Coins Tab ───────────────────────────────────────────────────── */
+.trends-container {
+  display: flex; flex-direction: column; height: 100%; gap: 6px;
+}
+.trends-header {
+  display: flex; align-items: baseline; gap: 10px; flex-shrink: 0;
+}
+.trends-title {
+  font-size: 0.74rem; font-weight: 600; color: var(--text-muted);
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+.trends-meta { font-size: 0.6rem; color: var(--text-muted); }
+
+.trends-grid {
+  display: flex; flex-wrap: wrap; gap: 7px;
+  align-content: flex-start; flex: 1; min-height: 0; overflow-y: auto;
+}
+
+.trend-card {
+  flex: 1 1 calc(25% - 7px); min-width: 160px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 6px;
+  transition: border-color 0.15s;
+}
+.trend-card:hover { border-color: var(--accent); }
+
+.trend-top {
+  display: flex; align-items: center; gap: 8px;
+}
+.trend-rank {
+  font-size: 0.6rem; font-weight: 700; color: var(--text-muted);
+  letter-spacing: 0.03em; flex-shrink: 0; width: 18px;
+}
+.trend-icon {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  object-fit: contain;
+}
+.trend-names {
+  display: flex; flex-direction: column; gap: 1px; min-width: 0;
+}
+.trend-name {
+  font-size: 0.74rem; font-weight: 700; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.trend-symbol {
+  font-size: 0.6rem; font-weight: 600; color: var(--accent);
+  letter-spacing: 0.04em;
+}
+
+.trend-bottom {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 6px;
+}
+.trend-price {
+  font-size: 0.74rem; font-weight: 400; color: var(--text);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.trend-chg {
+  font-size: 0.7rem; font-weight: 700; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.trend-chg.up   { color: var(--green); }
+.trend-chg.down { color: var(--red); }
+
+.trend-mcap {
+  font-size: 0.57rem; color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
