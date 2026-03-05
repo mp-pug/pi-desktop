@@ -77,23 +77,29 @@ Key API endpoints:
 
 Vanilla JS SPA (no framework) to minimize memory on the Pi.
 
-**6 tabs:** Home, Strategie, Trades, News, KI, Portfolio
+**7 tabs:** Home, Strategie, Trades, News, KI, Portfolio, Trends
 
-**Keyboard shortcuts:** `1`–`6` switch tabs, `R` refreshes active tab.
+**Keyboard shortcuts:** `1`–`7` switch tabs, `R` refreshes active tab.
 
 **Polling intervals:**
-- Clock: 1s | Bot/Trades: 2 min | Charts+Signals: 5 min (chained) | Indicators: 10 min | Fear&Greed/Ticker/News: 15 min | Weather/Strategy/Portfolio: 30 min | AI: daily
+- Clock: 1s | Bot/Trades: 2 min | Charts+Signals: 5 min (chained) | Indicators+TopMovers: 10 min | Fear&Greed/Ticker/News/Trends: 15 min | Weather/Strategy/Portfolio: 30 min | AI: daily
 
 **Home tab layout (top → bottom):**
 1. `charts-section` — sparkline cards with coin icon, price, change, buy/sell signal border
-2. `indicators-section` — 4 compact market indicator cards (BTC Dominance, Funding Rate, Long/Short, Mempool Fees)
+2. `indicators-section` — 5 compact cards: BTC Dominance, Funding Rate, Long/Short, Mempool Fees, Top Movers (wider, flex:1.6)
 3. `balances-section` — Kraken, Bitvavo, Fear & Greed, Portfolio total
+
+**Top Movers** (`loadTopMovers()`): fetches all Binance USDT pairs via `/api/v3/ticker/24hr?type=MINI`, filters out stablecoins, leveraged tokens (`UP/DOWN/3L/3S/BEAR/BULL`), and pairs with <$1M volume. Calculates change from `openPrice`/`lastPrice`. Shows top 3 gainers + losers.
+
+**Trending Coins tab** (`loadTrending()`): CoinGecko `/search/trending` — top 7 most-searched coins with icon, name, symbol, USD price, 24h change %, market cap. Lazy-loaded on first tab open, refreshed every 15 min.
 
 **External APIs called from browser (no key needed):**
 - Fear & Greed: `api.alternative.me/fng/`
 - BTC Dominance: `api.coingecko.com/api/v3/global`
+- Trending Coins: `api.coingecko.com/api/v3/search/trending`
 - Funding Rate: `fapi.binance.com/fapi/v1/fundingRate`
 - Long/Short Ratio: `fapi.binance.com/futures/data/globalLongShortAccountRatio`
+- Top Movers: `api.binance.com/api/v3/ticker/24hr?type=MINI`
 - Mempool Fees: `mempool.space/api/v1/fees/recommended`
 - Coin icons: `assets.coincap.io/assets/icons/{symbol}@2x.png`
 

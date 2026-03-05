@@ -15,6 +15,7 @@ Zeigt Echtzeit-Marktdaten, Exchange-Kontostände, Freqtrade-Bot-Status, Strategi
   - Funding Rate mit zentriertem +/–-Balken (Binance Futures)
   - Long/Short Ratio mit Split-Balken (Binance Futures)
   - Mempool Fees Low/Mid/Fast in sat/vByte (mempool.space)
+  - Top Movers: Top 3 Gewinner & Verlierer des Tages (Binance, alle USDT-Paare)
 - **Fear & Greed Index** mit Gauge-Balken (alternative.me)
 - Kontostände von Kraken und Bitvavo
 - Gesamt-Portfolio-Wert mit Änderung (basierend auf chart_interval)
@@ -43,6 +44,11 @@ Zeigt Echtzeit-Marktdaten, Exchange-Kontostände, Freqtrade-Bot-Status, Strategi
 - Cache überlebt Container-Neustarts (`config/ai_summary_cache.json`)
 - Manueller Refresh-Button (↺)
 - Konfigurierbarer Refresh-Zeitpunkt (`refresh_hour`)
+
+### Trending Coins
+- Meistgesuchte 7 Coins der letzten 24h (CoinGecko)
+- Karten mit Coin-Icon, Name, Symbol, Preis (USD), 24h-Änderung und Marktkapitalisierung
+- Alle 15 Minuten aktualisiert
 
 ### Portfolio-Verlauf
 - Stündlich gespeicherter Portfolio-Gesamtwert (`config/portfolio_history.json`)
@@ -107,7 +113,7 @@ Alle Einstellungen befinden sich in `config/config.json`. Die Datei wird bei Än
 
 | Taste | Aktion |
 |---|---|
-| `1` – `6` | Tab wechseln (Home, Strategie, Trades, News, KI, Portfolio) |
+| `1` – `7` | Tab wechseln (Home, Strategie, Trades, News, KI, Portfolio, Trends) |
 | `R` | Aktiven Tab manuell neu laden |
 
 ## Aktualisierungsintervalle
@@ -117,8 +123,8 @@ Alle Einstellungen befinden sich in `config/config.json`. Die Datei wird bei Än
 | Uhrzeit | sekündlich |
 | Bot-Status / Trades | alle 2 Minuten |
 | Kurse & Signale | alle 5 Minuten |
-| Fear & Greed / Markt-Indikatoren | alle 10–15 Minuten |
-| Newsfeed (Ticker + Tab) | alle 15 Minuten |
+| Markt-Indikatoren + Top Movers | alle 10 Minuten |
+| Fear & Greed / Newsfeed / Trending Coins | alle 15 Minuten |
 | Wetter | alle 30 Minuten |
 | Strategie-Indikatoren | alle 30 Minuten |
 | Portfolio-Verlauf | alle 30 Minuten (Datenpunkt stündlich) |
