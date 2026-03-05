@@ -27,28 +27,29 @@ CORS(app)
 
 CONFIG_PATH = os.environ.get("CONFIG_PATH", "/config/config.json")
 
-REQUIRED_CONFIG_KEYS = [
-    ("openweather", "api_key"),
-    ("openweather", "city"),
-]
-OPTIONAL_CONFIG_SECTIONS = ["kraken", "bitvavo", "freqtrade", "mammouth"]
+OPTIONAL_CONFIG_SECTIONS = ["openweather", "kraken", "bitvavo", "freqtrade", "mammouth"]
+
+# Config-Cache: Datei nur neu lesen wenn sich mtime geändert hat
+_config_cache: dict = {"cfg": None, "mtime": 0}
+_config_lock = threading.Lock()
 
 
 def load_config():
-    with open(CONFIG_PATH, "r") as f:
-        return json.load(f)
+    try:
+        mtime = os.path.getmtime(CONFIG_PATH)
+    except OSError:
+        mtime = 0
+    with _config_lock:
+        if _config_cache["cfg"] is None or mtime != _config_cache["mtime"]:
+            with open(CONFIG_PATH, "r") as f:
+                _config_cache["cfg"] = json.load(f)
+            _config_cache["mtime"] = mtime
+            logger.debug("Config neu geladen (mtime geändert)")
+        return _config_cache["cfg"]
 
 
 def validate_config(cfg):
-    """Prüft die Konfiguration auf Pflichtfelder und warnt bei fehlenden optionalen Sektionen."""
-    errors = []
-    for section, key in REQUIRED_CONFIG_KEYS:
-        if not cfg.get(section, {}).get(key):
-            errors.append(f"'{section}.{key}' fehlt oder ist leer")
-    if errors:
-        for err in errors:
-            logger.error("Config-Fehler: %s", err)
-        raise RuntimeError(f"Ungültige Konfiguration: {'; '.join(errors)}")
+    """Warnt bei fehlenden optionalen Sektionen."""
     for section in OPTIONAL_CONFIG_SECTIONS:
         if section not in cfg:
             logger.warning("Config: Optionale Sektion '%s' nicht konfiguriert", section)
@@ -99,17 +100,20 @@ def get_news():
             "https://coindesk.com/arc/outboundfeeds/rss/",
         ])
         headlines = []
+        seen_titles = set()
         for feed_url in feeds:
             try:
                 feed = feedparser.parse(feed_url)
                 for entry in feed.entries[:8]:
                     title = entry.get("title", "").strip()
-                    if title:
+                    key = title.lower()
+                    if title and key not in seen_titles:
+                        seen_titles.add(key)
                         headlines.append(title)
             except Exception:
                 logger.warning("RSS-Feed-Fehler für %s", feed_url)
                 continue
-        logger.info("News geladen: %d Headlines", len(headlines))
+        logger.info("News geladen: %d Headlines (dedupliziert)", len(headlines))
         return jsonify(headlines)
     except Exception as e:
         logger.exception("Fehler in get_news")
@@ -758,6 +762,7 @@ def get_news_full():
             "https://coindesk.com/arc/outboundfeeds/rss/",
         ])
         articles = []
+        seen_titles = set()
         for feed_url in feeds:
             try:
                 feed = feedparser.parse(feed_url)
@@ -767,6 +772,10 @@ def get_news_full():
                     title = entry.get("title", "").strip()
                     if not title:
                         continue
+                    key = title.lower()
+                    if key in seen_titles:
+                        continue
+                    seen_titles.add(key)
                     summary = entry.get("summary", entry.get("description", "")).strip()
                     summary = re.sub(r"<[^>]+>", "", summary)[:400]
                     articles.append({
@@ -779,7 +788,7 @@ def get_news_full():
             except Exception:
                 logger.warning("RSS-Feed-Fehler (full) für %s", feed_url)
                 continue
-        logger.info("News/full geladen: %d Artikel", len(articles))
+        logger.info("News/full geladen: %d Artikel (dedupliziert)", len(articles))
         return jsonify(articles)
     except Exception as e:
         logger.exception("Fehler in get_news_full")
@@ -790,6 +799,30 @@ def get_news_full():
 
 _ai_cache = {"summary": None, "generated_at": 0}
 _ai_lock = threading.Lock()
+AI_CACHE_PATH = os.path.join(os.path.dirname(CONFIG_PATH), "ai_summary_cache.json")
+
+
+def _load_ai_cache():
+    """Lädt den persistierten AI-Cache vom Disk, falls vorhanden."""
+    try:
+        with open(AI_CACHE_PATH, "r") as f:
+            data = json.load(f)
+        if data.get("summary") and data.get("generated_at", 0) > 0:
+            _ai_cache["summary"] = data["summary"]
+            _ai_cache["generated_at"] = data["generated_at"]
+            logger.info("AI-Cache aus Datei geladen (Stand: %s)",
+                        datetime.datetime.fromtimestamp(data["generated_at"]).strftime("%d.%m.%Y %H:%M"))
+    except Exception:
+        pass
+
+
+def _save_ai_cache():
+    """Persistiert den AI-Cache auf Disk."""
+    try:
+        with open(AI_CACHE_PATH, "w") as f:
+            json.dump({"summary": _ai_cache["summary"], "generated_at": _ai_cache["generated_at"]}, f)
+    except Exception as e:
+        logger.warning("AI-Cache konnte nicht gespeichert werden: %s", e)
 
 _strategy_info_cache: dict = {"description": None}
 _strategy_lock = threading.Lock()
@@ -861,7 +894,8 @@ def get_ai_summary():
                     logger.info("Generiere neue KI-Zusammenfassung")
                     _ai_cache["summary"] = generate_ai_summary()
                     _ai_cache["generated_at"] = now
-                    logger.info("KI-Zusammenfassung generiert")
+                    _save_ai_cache()
+                    logger.info("KI-Zusammenfassung generiert und gespeichert")
 
         with _ai_lock:
             summary = _ai_cache["summary"]
@@ -883,6 +917,10 @@ def refresh_ai_summary():
     with _ai_lock:
         _ai_cache["summary"] = None
         _ai_cache["generated_at"] = 0
+    try:
+        os.remove(AI_CACHE_PATH)
+    except OSError:
+        pass
     logger.info("KI-Cache zurückgesetzt (manueller Refresh)")
     return jsonify({"status": "ok"})
 
@@ -1218,6 +1256,7 @@ if __name__ == "__main__":
         logger.error("Konfigurationsfehler beim Start: %s", e)
         raise
 
+    _load_ai_cache()
     t = threading.Thread(target=init_strategy_description, daemon=True)
     t.start()
     app.run(host="0.0.0.0", port=5000, debug=False)
