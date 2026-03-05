@@ -11,7 +11,7 @@
   --topbar-bg:  #0a0c14;
   --topbar-h:   72px;
   --ticker-bg:  #0a0c14;
-  --ticker-h:   32px;
+  --ticker-h:   38px;
   --green:      #16a34a;
   --red:        #dc2626;
   font-size: 13px;
@@ -275,7 +275,7 @@ html, body {
 }
 .ticker-wrapper { flex: 1; overflow: hidden; height: 100%; display: flex; align-items: center; padding: 0 12px; }
 .ticker-headline {
-  color: #dde1ee; font-size: 0.78rem; white-space: nowrap;
+  color: #dde1ee; font-size: 0.78rem; font-weight: 700; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
   opacity: 0; transition: opacity 0.8s ease;
 }
@@ -343,7 +343,7 @@ html, body {
 .bot-status-dot.running { background: var(--green); box-shadow: 0 0 5px rgba(32,201,116,0.5); }
 .bot-status-dot.stopped { background: var(--red); }
 .bot-status-dot.unknown { background: var(--text-muted); }
-.bot-status-text { font-size: 0.62rem; color: var(--text-muted); }
+.bot-status-text { font-size: 0.62rem; color: #fff; }
 .bot-status-trades {
   font-size: 0.62rem; color: #93c5fd; font-weight: 600;
   padding: 1px 6px; background: rgba(76,110,245,0.18); border-radius: 99px;
