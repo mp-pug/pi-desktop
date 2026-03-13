@@ -24,7 +24,6 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
     document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
-    if (btn.dataset.tab === "strategy"  && !strategyLoaded)  loadStrategy();
     if (btn.dataset.tab === "trades"    && !tradesLoaded)    loadTrades();
     if (btn.dataset.tab === "news"      && !newsLoaded)      loadNewsTab();
     if (btn.dataset.tab === "ai"        && !aiLoaded)        loadAI();
@@ -34,7 +33,7 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
 });
 
 // ── Keyboard-Shortcuts ────────────────────────────────────────────────────────
-const TAB_KEYS = { "1":"home","2":"strategy","3":"trades","4":"news","5":"ai","6":"portfolio","7":"trends" };
+const TAB_KEYS = { "1":"home","2":"trades","3":"news","4":"ai","5":"portfolio","6":"trends" };
 document.addEventListener("keydown", e => {
   if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
   if (TAB_KEYS[e.key]) {
@@ -44,7 +43,6 @@ document.addEventListener("keydown", e => {
   if (e.key === "r" || e.key === "R") {
     const active = document.querySelector(".tab-btn.active")?.dataset.tab;
     if (active === "home")      { loadCharts().then(() => loadSignals()); loadBalances(); loadFearGreed(); loadMarketIndicators(); }
-    if (active === "strategy")  { strategyLoaded = false; loadStrategy(); }
     if (active === "trades")    { tradesLoaded = false; loadTrades(); }
     if (active === "news")      { newsLoaded = false; loadNewsTab(); }
     if (active === "ai")        { aiLoaded = false; loadAI(); }
@@ -173,94 +171,6 @@ function renderBalances(id, data) {
       <span class="balance-symbol">${escapeHtml(s)}</span>
       <span class="balance-amount">${formatAmount(a)}</span>
     </div>`).join("");
-}
-
-// ── Strategie Info-Button ─────────────────────────────────────────────────────
-let strategyInfoLoaded = false;
-
-document.getElementById("strategy-info-btn").addEventListener("click", () => {
-  const box = document.getElementById("strategy-infobox");
-  const isVisible = box.style.display !== "none";
-  box.style.display = isVisible ? "none" : "block";
-  if (!isVisible && !strategyInfoLoaded) loadStrategyInfo();
-});
-
-async function loadStrategyInfo() {
-  strategyInfoLoaded = true;
-  const el = document.getElementById("strategy-infobox-content");
-  try {
-    const data = await fetchJSON(`${API}/api/strategy-info`);
-    if (data.error) {
-      el.innerHTML = `<span class="error">${escapeHtml(data.error)}</span>`;
-      strategyInfoLoaded = false;
-      return;
-    }
-    if (data.filename) {
-      document.getElementById("strategy-name").textContent = data.filename.replace(".py","");
-    }
-    el.innerHTML = marked.parse(data.description);
-  } catch(e) {
-    el.innerHTML = `<span class="error">Nicht verfügbar: ${e.message}</span>`;
-    strategyInfoLoaded = false;
-  }
-}
-
-// ── Strategie-Tab ─────────────────────────────────────────────────────────────
-let strategyLoaded = false;
-
-async function loadStrategy() {
-  strategyLoaded = true;
-  const grid = document.getElementById("strategy-grid");
-  const warningEl = document.getElementById("strategy-warning");
-  try {
-    const data = await fetchJSON(`${API}/api/strategy`);
-    if (data.error) { grid.innerHTML = `<span class="error">${escapeHtml(data.error)}</span>`; return; }
-
-    if (data._warning) {
-      warningEl.textContent = `⚠ ${String(data._warning)}`;
-      warningEl.style.display = "block";
-    } else {
-      warningEl.style.display = "none";
-    }
-
-    grid.innerHTML = Object.entries(data)
-      .filter(([symbol]) => !symbol.startsWith("_"))
-      .map(([symbol, info]) => {
-        if (info.error) return `<div class="strategy-card">
-          <div class="strategy-card-header"><span class="strategy-symbol">${symbol}</span></div>
-          <div class="error">${escapeHtml(info.error)}</div>
-        </div>`;
-
-        if (!info.indicators || info.indicators.length === 0) return `<div class="strategy-card">
-          <div class="strategy-card-header">
-            <span class="strategy-symbol">${symbol}</span>
-            <span class="strategy-signal neutral">Neutral</span>
-          </div>
-          <div class="strategy-no-data">Noch keine Daten (warte auf Kerzenschluss)</div>
-        </div>`;
-
-        const sig = info.signal;
-        const sigLabel = sig === "buy" ? "Kaufsignal" : sig === "sell" ? "Verkaufsignal" : "Neutral";
-        const indicators = info.indicators.map(ind => `
-          <div class="indicator-row">
-            <span class="indicator-name" title="${escapeHtml(ind.name)}">${escapeHtml(ind.name)}</span>
-            <span class="indicator-value">${typeof ind.value === "number" ? ind.value.toFixed(4) : escapeHtml(String(ind.value))}</span>
-            <div class="indicator-light ${ind.status}"></div>
-          </div>`).join("");
-
-        return `<div class="strategy-card">
-          <div class="strategy-card-header">
-            <span class="strategy-symbol">${escapeHtml(symbol)}</span>
-            <span class="strategy-signal ${sig}">${sigLabel}</span>
-          </div>
-          <div class="strategy-counter">${info.buy_count} von ${info.total} Signalen erfüllt${info.in_trade ? " · Position offen" : ""}</div>
-          <div class="indicator-list">${indicators}</div>
-        </div>`;
-      }).join("");
-  } catch(e) {
-    grid.innerHTML = `<span class="error">Strategie-Daten nicht verfügbar: ${e.message}</span>`;
-    strategyLoaded = false;
-  }
 }
 
 // ── News-Tab ──────────────────────────────────────────────────────────────────
@@ -522,27 +432,33 @@ let _prevTradeCount = null;
 async function loadBotStatus() {
   const el = document.getElementById("bot-status");
   try {
-    const d = await fetchJSON(`${API}/api/bot-status`);
-    if (!d.available) {
-      el.innerHTML = `<span class="bot-status-dot unknown"></span><span class="bot-status-text">Bot offline</span>`;
+    const bots = await fetchJSON(`${API}/api/bot-status`);
+    if (!Array.isArray(bots) || !bots.length) {
+      el.innerHTML = `<span class="bot-entry"><span class="bot-status-dot unknown"></span><span class="bot-status-text">–</span></span>`;
       return;
     }
-    const running = d.state === "running";
-    const dotClass = running ? "running" : "stopped";
-    const stateText = running ? "Läuft" : (d.state || "Gestoppt");
 
-    if (_prevTradeCount !== null && d.open_trades != null && d.open_trades !== _prevTradeCount) {
+    const totalTrades = bots.filter(b => b.available).reduce((s, b) => s + (b.open_trades || 0), 0);
+    if (_prevTradeCount !== null && totalTrades !== _prevTradeCount) {
       el.classList.add("bot-trade-alert");
       setTimeout(() => el.classList.remove("bot-trade-alert"), 3000);
     }
-    if (d.open_trades != null) _prevTradeCount = d.open_trades;
+    _prevTradeCount = totalTrades;
 
-    el.innerHTML = `
-      <span class="bot-status-dot ${dotClass}"></span>
-      <span class="bot-status-text">${escapeHtml(stateText)}</span>
-      ${d.open_trades != null ? `<span class="bot-status-trades">${d.open_trades}/${d.max_trades || "?"} Trades</span>` : ""}`;
+    el.innerHTML = bots.map((d, i) => {
+      const name = escapeHtml(d.name || "Bot");
+      if (!d.available) {
+        return `<span class="bot-entry" title="${name}: Offline"><span class="bot-status-dot unknown"></span><span class="bot-name">${name}</span></span>`;
+      }
+      const running = d.state === "running";
+      const dotClass = running ? "running" : "stopped";
+      const tradesHtml = d.open_trades != null
+        ? `<span class="bot-status-trades">${d.open_trades}/${d.max_trades || "?"}</span>`
+        : "";
+      return `<span class="bot-entry" title="${name}: ${escapeHtml(d.state || 'gestoppt')}"><span class="bot-status-dot ${dotClass}"></span><span class="bot-name">${name}</span>${tradesHtml}</span>`;
+    }).join(`<span class="bot-sep">·</span>`);
   } catch(e) {
-    el.innerHTML = `<span class="bot-status-dot unknown"></span><span class="bot-status-text">–</span>`;
+    el.innerHTML = `<span class="bot-entry"><span class="bot-status-dot unknown"></span><span class="bot-status-text">–</span></span>`;
   }
 }
 
@@ -570,9 +486,11 @@ function renderTrade(t) {
   const openDate  = formatTradeDate(t.open_date);
   const closeDate = t.close_date ? formatTradeDate(t.close_date) : "";
   const duration  = t.is_open ? ` · ${formatDuration(t.open_date)}` : "";
+  const botBadge = t.bot ? `<span class="trade-bot">${escapeHtml(t.bot)}</span>` : "";
   return `<div class="trade-card ${cardClass}">
     <div class="trade-header">
       <span class="trade-pair">${escapeHtml(t.pair || "–")}</span>
+      ${botBadge}
       <span class="trade-profit ${profitClass}">${profitStr}</span>
     </div>
     <div class="trade-meta">Kauf: ${buyRate} € → ${t.is_open ? "Aktuell" : "Verkauf"}: ${sellRate} €</div>
@@ -820,7 +738,7 @@ async function loadMarketIndicators() {
   loadBtcDominance();
   loadFundingRate();
   loadLongShortRatio();
-  loadMempoolFees();
+  loadTotalMarketCap();
   loadTopMovers();
 }
 
@@ -880,24 +798,29 @@ async function loadLongShortRatio() {
   } catch(e) { el.innerHTML = `<span class="ind-error">–</span>`; }
 }
 
-async function loadMempoolFees() {
-  const el = document.getElementById("ind-mempool");
+async function loadTotalMarketCap() {
+  const el = document.getElementById("ind-mktcap");
   if (!el) return;
   try {
-    const d = await fetchJSON("https://mempool.space/api/v1/fees/recommended");
-    const fees = [d.hourFee, d.halfHourFee, d.fastestFee];
-    const labels = ["Low", "Mid", "Fast"];
-    const color = f => f <= 10 ? "#16a34a" : f <= 40 ? "#ca8a04" : "#dc2626";
+    const d = await fetchJSON("https://api.coingecko.com/api/v3/global");
+    const mcap = d.data.total_market_cap.usd;
+    const chg  = d.data.market_cap_change_percentage_24h_usd;
+    const isUp = chg >= 0;
+    const color = isUp ? "#16a34a" : "#dc2626";
+    const sign  = isUp ? "+" : "";
+
+    let mcapStr;
+    if (mcap >= 1e12)      mcapStr = (mcap / 1e12).toFixed(2) + " Bio.";
+    else if (mcap >= 1e9)  mcapStr = (mcap / 1e9).toFixed(0)  + " Mrd.";
+    else                   mcapStr = (mcap / 1e6).toFixed(0)  + " Mio.";
+
+    const barPct = Math.min(Math.abs(chg) / 5 * 50, 50);
     el.innerHTML = `
-      <div class="ind-mempool-fees">
-        ${fees.map((f, i) => `
-          <div class="ind-fee-item">
-            <span class="ind-fee-dot" style="background:${color(f)}"></span>
-            <span class="ind-fee-val">${f}</span>
-            <span class="ind-fee-lbl">${labels[i]}</span>
-          </div>`).join("")}
+      <div class="ind-value" style="color:${color}">${sign}${chg.toFixed(2)}<span class="ind-unit">%</span></div>
+      <div class="ind-funding-wrap">
+        <div class="ind-funding-fill" style="${isUp ? `left:50%;` : `right:50%;`}width:${barPct}%;background:${color}"></div>
       </div>
-      <div class="ind-sub">sat / vByte</div>`;
+      <div class="ind-sub">${mcapStr} Gesamt</div>`;
   } catch(e) { el.innerHTML = `<span class="ind-error">–</span>`; }
 }
 
@@ -918,7 +841,6 @@ intervals.indicators = setInterval(loadMarketIndicators, 10 * 60 * 1000);
 intervals.charts    = setInterval(() => loadCharts().then(() => loadSignals()),  5 * 60 * 1000);
 intervals.balances  = setInterval(loadBalances,   2 * 60 * 1000);
 intervals.ticker    = setInterval(loadTicker,    15 * 60 * 1000);
-intervals.strategy  = setInterval(() => { if (strategyLoaded)  loadStrategy(); },          30 * 60 * 1000);
 intervals.botStatus = setInterval(loadBotStatus,  2 * 60 * 1000);
 intervals.trades    = setInterval(() => { if (tradesLoaded)    loadTrades(); },             2 * 60 * 1000);
 intervals.news      = setInterval(() => { if (newsLoaded)      loadNewsTab(); },           15 * 60 * 1000);

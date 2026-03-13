@@ -16,11 +16,14 @@
     "api_secret": "DEIN_BITVAVO_API_SECRET"
   },
 
-  "freqtrade": {
-    "url": "http://192.168.178.2:8080",
-    "username": "DEIN_FREQTRADE_USERNAME",
-    "password": "DEIN_FREQTRADE_PASSWORT"
-  },
+  "freqtrade_bots": [
+    {
+      "name": "Bot 1",
+      "url": "http://192.168.178.2:8080",
+      "username": "DEIN_FREQTRADE_USERNAME",
+      "password": "DEIN_FREQTRADE_PASSWORT"
+    }
+  ],
 
   "mammouth": {
     "api_key": "DEIN_MAMMOUTH_API_KEY",

@@ -27,7 +27,7 @@ CORS(app)
 
 CONFIG_PATH = os.environ.get("CONFIG_PATH", "/config/config.json")
 
-OPTIONAL_CONFIG_SECTIONS = ["openweather", "kraken", "bitvavo", "freqtrade", "mammouth"]
+OPTIONAL_CONFIG_SECTIONS = ["openweather", "kraken", "bitvavo", "mammouth"]
 
 # Config-Cache: Datei nur neu lesen wenn sich mtime geändert hat
 _config_cache: dict = {"cfg": None, "mtime": 0}
@@ -53,6 +53,8 @@ def validate_config(cfg):
     for section in OPTIONAL_CONFIG_SECTIONS:
         if section not in cfg:
             logger.warning("Config: Optionale Sektion '%s' nicht konfiguriert", section)
+    if not cfg.get("freqtrade_bots") and not cfg.get("freqtrade"):
+        logger.warning("Config: Optionale Sektion 'freqtrade_bots' nicht konfiguriert")
 
 
 # ── Wetter ────────────────────────────────────────────────────────────────────
@@ -265,7 +267,7 @@ def get_whitelist():
     """Gibt die aktiven Coins des Freqtrade-Bots zurück."""
     try:
         cfg = load_config()
-        if "freqtrade" not in cfg:
+        if not has_ft_config(cfg):
             return jsonify({"error": "Freqtrade nicht konfiguriert"}), 400
         session, base_url = ft_session(cfg)
         symbols = ft_whitelist_symbols(session, base_url)
@@ -284,7 +286,7 @@ def get_charts():
     try:
         cfg = load_config()
         symbols = []
-        if "freqtrade" in cfg:
+        if has_ft_config(cfg):
             try:
                 session, base_url = ft_session(cfg)
                 symbols = ft_whitelist_symbols(session, base_url)
@@ -332,26 +334,51 @@ def get_charts():
 
 # ── Freqtrade Signale & Strategie ────────────────────────────────────────────
 
-def ft_session(cfg):
-    """Gibt eine requests.Session mit JWT-Auth für Freqtrade zurück."""
-    ft = cfg.get("freqtrade", {})
+def get_ft_bots(cfg):
+    """Gibt eine Liste von Bot-Konfigurationen zurück.
+    Unterstützt 'freqtrade_bots' (Liste) und 'freqtrade' (einzelner Bot, Fallback).
+    """
+    bots = cfg.get("freqtrade_bots")
+    if bots and isinstance(bots, list):
+        return bots
+    ft = cfg.get("freqtrade")
+    if ft:
+        return [{"name": ft.get("name", "Bot"), **ft}]
+    return []
+
+
+def has_ft_config(cfg):
+    """Gibt True zurück wenn mindestens ein Freqtrade-Bot konfiguriert ist."""
+    return bool(get_ft_bots(cfg))
+
+
+def ft_session_for(bot_cfg):
+    """Gibt eine requests.Session mit JWT-Auth für einen einzelnen Bot zurück."""
+    name = bot_cfg.get("name", "Bot")
     s = requests.Session()
-    # Freqtrade erwartet HTTP Basic Auth beim Token-Login
     resp = s.post(
-        ft["url"] + "/api/v1/token/login",
-        auth=(ft["username"], ft["password"]),
+        bot_cfg["url"] + "/api/v1/token/login",
+        auth=(bot_cfg["username"], bot_cfg["password"]),
         timeout=5,
     )
     if resp.status_code == 401:
-        logger.error("Freqtrade: Ungültige Zugangsdaten (401)")
-        raise ValueError("Freqtrade: Ungültige Zugangsdaten (401)")
+        logger.error("Freqtrade '%s': Ungültige Zugangsdaten (401)", name)
+        raise ValueError(f"Freqtrade '{name}': Ungültige Zugangsdaten (401)")
     resp.raise_for_status()
     token = resp.json().get("access_token")
     if not token:
-        raise ValueError("Freqtrade: Kein Token erhalten")
+        raise ValueError(f"Freqtrade '{name}': Kein Token erhalten")
     s.headers.update({"Authorization": f"Bearer {token}"})
-    logger.debug("Freqtrade-Session erfolgreich aufgebaut")
-    return s, ft["url"]
+    logger.debug("Freqtrade-Session für '%s' aufgebaut", name)
+    return s, bot_cfg["url"]
+
+
+def ft_session(cfg):
+    """Gibt eine Session für den ersten konfigurierten Bot zurück (Abwärtskompatibilität)."""
+    bots = get_ft_bots(cfg)
+    if not bots:
+        raise ValueError("Freqtrade nicht konfiguriert")
+    return ft_session_for(bots[0])
 
 @app.route("/api/signals")
 def get_signals():
@@ -362,7 +389,7 @@ def get_signals():
     """
     try:
         cfg = load_config()
-        if "freqtrade" not in cfg:
+        if not has_ft_config(cfg):
             return jsonify({"error": "Freqtrade nicht konfiguriert"}), 400
 
         session, base_url = ft_session(cfg)
@@ -630,7 +657,7 @@ def get_strategy():
     """
     try:
         cfg = load_config()
-        if "freqtrade" not in cfg:
+        if not has_ft_config(cfg):
             return jsonify({"error": "Freqtrade nicht konfiguriert"}), 400
 
         session, base_url = ft_session(cfg)
@@ -840,7 +867,7 @@ def generate_ai_summary():
 
     # Coins aus Freqtrade holen
     coins = list(KRAKEN_PAIR_MAP.keys())
-    if "freqtrade" in cfg:
+    if has_ft_config(cfg):
         try:
             session, base_url = ft_session(cfg)
             coins = ft_whitelist_symbols(session, base_url)
@@ -1155,83 +1182,105 @@ def init_strategy_description():
 
 @app.route("/api/bot-status")
 def get_bot_status():
-    """Gibt den aktuellen Status des Freqtrade-Bots zurück."""
+    """Gibt den aktuellen Status aller konfigurierten Freqtrade-Bots zurück."""
     try:
         cfg = load_config()
-        if "freqtrade" not in cfg:
-            return jsonify({"available": False})
+        bots = get_ft_bots(cfg)
+        if not bots:
+            return jsonify([{"name": "Bot", "available": False}])
 
-        session, base_url = ft_session(cfg)
-        ft_cfg   = ft_show_config(session, base_url)
-        count    = session.get(base_url + "/api/v1/count",  timeout=5).json()
-        profit_r = session.get(base_url + "/api/v1/profit", timeout=5)
-        profit   = profit_r.json() if profit_r.status_code == 200 else {}
+        results = []
+        for bot_cfg in bots:
+            name = bot_cfg.get("name", "Bot")
+            try:
+                session, base_url = ft_session_for(bot_cfg)
+                ft_cfg   = ft_show_config(session, base_url)
+                count    = session.get(base_url + "/api/v1/count",  timeout=5).json()
+                profit_r = session.get(base_url + "/api/v1/profit", timeout=5)
+                profit   = profit_r.json() if profit_r.status_code == 200 else {}
+                results.append({
+                    "name":          name,
+                    "available":     True,
+                    "state":         ft_cfg.get("state", "unknown"),
+                    "strategy":      ft_cfg.get("strategy"),
+                    "open_trades":   count.get("current", 0),
+                    "max_trades":    count.get("max", 0),
+                    "profit_closed": round(float(profit.get("profit_closed_coin") or 0), 4),
+                    "profit_factor": round(float(profit.get("profit_factor")      or 1), 2),
+                })
+            except Exception as e:
+                logger.warning("Bot-Status '%s' nicht verfügbar: %s", name, e)
+                results.append({"name": name, "available": False, "error": str(e)})
 
-        return jsonify({
-            "available":     True,
-            "state":         ft_cfg.get("state", "unknown"),
-            "strategy":      ft_cfg.get("strategy"),
-            "open_trades":   count.get("current", 0),
-            "max_trades":    count.get("max", 0),
-            "profit_closed": round(float(profit.get("profit_closed_coin") or 0), 4),
-            "profit_factor": round(float(profit.get("profit_factor")      or 1), 2),
-        })
+        return jsonify(results)
     except Exception as e:
-        logger.warning("Bot-Status nicht verfügbar: %s", e)
-        return jsonify({"available": False, "error": str(e)})
+        logger.exception("Fehler in get_bot_status")
+        return jsonify([{"name": "Bot", "available": False, "error": str(e)}])
 
 
 # ── Trade-Historie ─────────────────────────────────────────────────────────────
 
 @app.route("/api/trades")
 def get_trades():
-    """Gibt offene und abgeschlossene Trades aus Freqtrade zurück."""
+    """Gibt offene und abgeschlossene Trades aller konfigurierten Bots zurück."""
     try:
         cfg = load_config()
-        if "freqtrade" not in cfg:
+        bots = get_ft_bots(cfg)
+        if not bots:
             return jsonify({"error": "Freqtrade nicht konfiguriert"}), 400
 
-        session, base_url = ft_session(cfg)
+        all_open   = []
+        all_closed = []
 
-        open_resp   = session.get(base_url + "/api/v1/status",         timeout=5)
-        closed_resp = session.get(base_url + "/api/v1/trades",
-                                  params={"limit": 30}, timeout=5)
+        for bot_cfg in bots:
+            bot_name = bot_cfg.get("name", "Bot")
+            try:
+                session, base_url = ft_session_for(bot_cfg)
 
-        open_trades   = open_resp.json()   if open_resp.status_code   == 200 else []
-        closed_data   = closed_resp.json() if closed_resp.status_code == 200 else {}
-        closed_trades = closed_data.get("trades", [])
+                open_resp   = session.get(base_url + "/api/v1/status",
+                                          timeout=5)
+                closed_resp = session.get(base_url + "/api/v1/trades",
+                                          params={"limit": 30}, timeout=5)
 
-        # Nur relevante Felder zurückgeben
-        def fmt_open(t):
-            return {
-                "pair":            t.get("pair"),
-                "open_rate":       t.get("open_rate"),
-                "current_rate":    t.get("current_rate"),
-                "profit_pct":      round(float(t.get("current_profit_pct", 0)) * 100, 2),
-                "profit_abs":      round(float(t.get("current_profit_abs", 0)), 2),
-                "open_date":       t.get("open_date"),
-                "stake_amount":    round(float(t.get("stake_amount", 0)), 2),
-                "is_open":         True,
-            }
+                open_trades   = open_resp.json()   if open_resp.status_code   == 200 else []
+                closed_data   = closed_resp.json() if closed_resp.status_code == 200 else {}
+                closed_trades = closed_data.get("trades", [])
 
-        def fmt_closed(t):
-            return {
-                "pair":        t.get("pair"),
-                "open_rate":   t.get("open_rate"),
-                "close_rate":  t.get("close_rate"),
-                "profit_pct":  round(float(t.get("profit_ratio", 0)) * 100, 2),
-                "profit_abs":  round(float(t.get("profit_abs", 0)), 2),
-                "open_date":   t.get("open_date"),
-                "close_date":  t.get("close_date"),
-                "is_open":     False,
-            }
+                for t in open_trades:
+                    all_open.append({
+                        "pair":         t.get("pair"),
+                        "open_rate":    t.get("open_rate"),
+                        "current_rate": t.get("current_rate"),
+                        "profit_pct":   round(float(t.get("current_profit_pct", 0)) * 100, 2),
+                        "profit_abs":   round(float(t.get("current_profit_abs", 0)), 2),
+                        "open_date":    t.get("open_date"),
+                        "stake_amount": round(float(t.get("stake_amount", 0)), 2),
+                        "is_open":      True,
+                        "bot":          bot_name,
+                    })
 
-        logger.info("Trades geladen: %d offen, %d geschlossen",
-                    len(open_trades), len(closed_trades))
-        return jsonify({
-            "open":   [fmt_open(t)   for t in open_trades],
-            "closed": [fmt_closed(t) for t in closed_trades],
-        })
+                for t in closed_trades:
+                    all_closed.append({
+                        "pair":       t.get("pair"),
+                        "open_rate":  t.get("open_rate"),
+                        "close_rate": t.get("close_rate"),
+                        "profit_pct": round(float(t.get("profit_ratio", 0)) * 100, 2),
+                        "profit_abs": round(float(t.get("profit_abs", 0)), 2),
+                        "open_date":  t.get("open_date"),
+                        "close_date": t.get("close_date"),
+                        "is_open":    False,
+                        "bot":        bot_name,
+                    })
+
+            except Exception as e:
+                logger.warning("Trades für Bot '%s' nicht verfügbar: %s", bot_name, e)
+
+        # Geschlossene Trades nach Datum absteigend sortieren
+        all_closed.sort(key=lambda t: t.get("close_date") or "", reverse=True)
+
+        logger.info("Trades geladen: %d offen, %d geschlossen (alle Bots)",
+                    len(all_open), len(all_closed))
+        return jsonify({"open": all_open, "closed": all_closed})
     except Exception as e:
         logger.exception("Fehler in get_trades")
         return jsonify({"error": str(e)}), 500
