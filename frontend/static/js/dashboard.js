@@ -318,6 +318,13 @@ let _chartPrices = {};
 let _chartChanges = {};
 let _chartPeriodLabel = "";
 let _balanceAmounts = {};
+let _portfolioSnapshots = [];
+
+async function loadPortfolioSnapshotsBackground() {
+  try {
+    _portfolioSnapshots = await fetchJSON(`${API}/api/portfolio-history`);
+  } catch(e) {}
+}
 
 function formatPeriod(intervalMin, candles) {
   const total = intervalMin * candles;
@@ -412,13 +419,23 @@ function updatePortfolioTotal() {
   }
   if (total <= 0) return;
 
-  const diff = total - total24hAgo;
-  const diffPct = total24hAgo > 0 ? (diff / total24hAgo) * 100 : 0;
+  // Use actual 24h-ago snapshot if available — captures deposits/withdrawals too
+  const nowTs = Date.now() / 1000;
+  const past24h = _portfolioSnapshots.filter(([ts]) => ts <= nowTs - 86400);
+  let diff, diffPct, periodSuffix;
+  if (past24h.length > 0) {
+    const refVal = past24h[past24h.length - 1][1];
+    diff = total - refVal;
+    diffPct = refVal > 0 ? (diff / refVal) * 100 : 0;
+    periodSuffix = " · 24h";
+  } else {
+    diff = total - total24hAgo;
+    diffPct = total24hAgo > 0 ? (diff / total24hAgo) * 100 : 0;
+    periodSuffix = _chartPeriodLabel ? ` · ${_chartPeriodLabel}` : "";
+  }
   const isUp = diff >= 0;
   const arrow = isUp ? "▲" : "▼";
   const sign  = isUp ? "+" : "";
-
-  const periodSuffix = _chartPeriodLabel ? ` · ${_chartPeriodLabel}` : "";
   el.innerHTML = `
     <div class="portfolio-value">${total.toLocaleString("de-DE", {minimumFractionDigits: 2, maximumFractionDigits: 2})} €</div>
     <div class="portfolio-change ${isUp ? "up" : "down"}">${arrow} ${sign}${diffPct.toFixed(2)}% (${sign}${diff.toLocaleString("de-DE", {minimumFractionDigits: 2, maximumFractionDigits: 2})} €)${periodSuffix}</div>`;
@@ -834,6 +851,7 @@ loadCharts().then(() => loadSignals());
 loadBalances();
 loadTicker();
 loadBotStatus();
+loadPortfolioSnapshotsBackground();
 
 intervals.weather    = setInterval(loadWeather,          30 * 60 * 1000);
 intervals.fearGreed  = setInterval(loadFearGreed,        15 * 60 * 1000);
@@ -845,4 +863,5 @@ intervals.botStatus = setInterval(loadBotStatus,  2 * 60 * 1000);
 intervals.trades    = setInterval(() => { if (tradesLoaded)    loadTrades(); },             2 * 60 * 1000);
 intervals.news      = setInterval(() => { if (newsLoaded)      loadNewsTab(); },           15 * 60 * 1000);
 intervals.portfolio = setInterval(() => { if (portfolioLoaded) loadPortfolioHistory(); }, 30 * 60 * 1000);
+intervals.portfolioSnaps = setInterval(loadPortfolioSnapshotsBackground, 5 * 60 * 1000);
 intervals.trends    = setInterval(() => { if (trendsLoaded)    loadTrending(); },          15 * 60 * 1000);
