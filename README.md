@@ -17,7 +17,7 @@ Zeigt Echtzeit-Marktdaten, Exchange-Kontostände, Freqtrade-Bot-Status, Strategi
   - Mempool Fees Low/Mid/Fast in sat/vByte (mempool.space)
   - Top Movers: Top 3 Gewinner & Verlierer des Tages (Binance, alle USDT-Paare)
 - **Fear & Greed Index** mit Gauge-Balken (alternative.me)
-- Kontostände von Kraken und Bitvavo
+- Kontostände von Kraken und Bitvavo mit EUR-Wert pro Coin
 - Gesamt-Portfolio-Wert mit Änderung (basierend auf chart_interval)
 
 ### Strategie

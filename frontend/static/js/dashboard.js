@@ -76,6 +76,11 @@ function formatAmount(n) {
   return v.toLocaleString("de-DE", {minimumFractionDigits: 2, maximumFractionDigits: 8});
 }
 
+function formatEur(v) {
+  if (v >= 1000) return "€\u202f" + v.toLocaleString("de-DE", {minimumFractionDigits: 0, maximumFractionDigits: 0});
+  return "€\u202f" + v.toLocaleString("de-DE", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
 function formatDuration(openDateStr) {
   if (!openDateStr) return "";
   const open = new Date(openDateStr.endsWith("Z") ? openDateStr : openDateStr + "Z");
@@ -166,11 +171,22 @@ function renderBalances(id, data) {
   if (data.error) { el.innerHTML = `<span class="error">${escapeHtml(data.error)}</span>`; return; }
   const entries = Object.entries(data);
   if (!entries.length) { el.innerHTML = `<span class="error">Keine Bestände</span>`; return; }
-  el.innerHTML = entries.map(([s, a]) => `
+  el.innerHTML = entries.map(([s, a]) => {
+    const amount = parseFloat(a);
+    let eurStr = "";
+    if (s === "EUR") {
+      eurStr = `<span class="balance-eur">${formatEur(amount)}</span>`;
+    } else if (!STABLE_COINS.has(s) && Object.keys(_chartPrices).length) {
+      const key = Object.keys(_chartPrices).find(k => k.startsWith(s + "/") || k === s);
+      if (key) eurStr = `<span class="balance-eur">${formatEur(amount * _chartPrices[key])}</span>`;
+    }
+    return `
     <div class="balance-item">
       <span class="balance-symbol">${escapeHtml(s)}</span>
       <span class="balance-amount">${formatAmount(a)}</span>
-    </div>`).join("");
+      ${eurStr}
+    </div>`;
+  }).join("");
 }
 
 // ── News-Tab ──────────────────────────────────────────────────────────────────
@@ -319,6 +335,8 @@ let _chartChanges = {};
 let _chartPeriodLabel = "";
 let _balanceAmounts = {};
 let _portfolioSnapshots = [];
+let _krakenData = {};
+let _bitvavoData = {};
 
 async function loadPortfolioSnapshotsBackground() {
   try {
@@ -376,6 +394,8 @@ async function loadCharts() {
         </svg>
       </div>`;
     }).join("");
+    if (Object.keys(_krakenData).length)  renderBalances("kraken-balances",  _krakenData);
+    if (Object.keys(_bitvavoData).length) renderBalances("bitvavo-balances", _bitvavoData);
     updatePortfolioTotal();
   } catch(e) {
     section.innerHTML = `<span class="error">Kurse nicht verfügbar: ${e.message}</span>`;
@@ -388,11 +408,13 @@ async function loadBalances() {
   try {
     const kraken  = await fetchJSON(`${API}/api/kraken`);
     const bitvavo = await fetchJSON(`${API}/api/bitvavo`);
+    _krakenData  = kraken.error  ? {} : kraken;
+    _bitvavoData = bitvavo.error ? {} : bitvavo;
     renderBalances("kraken-balances",  kraken);
     renderBalances("bitvavo-balances", bitvavo);
     _balanceAmounts = {};
-    for (const [s, a] of Object.entries(kraken.error  ? {} : kraken))  _balanceAmounts[s] = (_balanceAmounts[s] || 0) + parseFloat(a);
-    for (const [s, a] of Object.entries(bitvavo.error ? {} : bitvavo)) _balanceAmounts[s] = (_balanceAmounts[s] || 0) + parseFloat(a);
+    for (const [s, a] of Object.entries(_krakenData))  _balanceAmounts[s] = (_balanceAmounts[s] || 0) + parseFloat(a);
+    for (const [s, a] of Object.entries(_bitvavoData)) _balanceAmounts[s] = (_balanceAmounts[s] || 0) + parseFloat(a);
     updatePortfolioTotal();
   } catch(e) {
     document.getElementById("kraken-balances").innerHTML  = `<span class="error">Nicht verfügbar</span>`;

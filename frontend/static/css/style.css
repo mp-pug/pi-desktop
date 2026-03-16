@@ -149,7 +149,8 @@ html, body {
 }
 .balance-item:last-child { border-bottom: none; }
 .balance-symbol { font-size: 0.72rem; font-weight: 600; color: var(--accent); }
-.balance-amount { font-size: 0.7rem; color: var(--text); font-variant-numeric: tabular-nums; }
+.balance-amount { font-size: 0.68rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.balance-eur    { font-size: 0.7rem;  color: var(--text);       font-variant-numeric: tabular-nums; }
 
 /* ── NEWS ─────────────────────────────────────────────────────────────────── */
 .news-list { display: flex; flex-direction: column; gap: 5px; overflow-y: auto; flex: 1; min-height: 0; }

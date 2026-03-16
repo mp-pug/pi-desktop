@@ -107,10 +107,12 @@ Vanilla JS SPA (no framework) to minimize memory on the Pi.
 - Tabs load data only on first click (lazy loading via `*Loaded` flags)
 - `chartsRendering` flag prevents signal updates during chart re-render (race condition guard)
 - `loadCharts()` → extracts prices → calls `loadSignals()` (chained, not independent)
+- `loadCharts()` also re-renders balances (`_krakenData`, `_bitvavoData`) after prices are available so EUR values appear even if balances loaded first
 - `savePortfolioSnapshot(value)` called from `updatePortfolioTotal()` after computing total; backend throttles writes
 - `marked.min.js` renders AI markdown output
 - News: deduplicated server-side; filtered client-side by source; `newsActiveFilter` state preserved across refreshes
 - Bot-status: flashes `bot-trade-alert` animation when `open_trades` count changes
+- Balance rows show: symbol | coin amount (muted) | EUR value — EUR value computed from `_chartPrices`; EUR stablecoins show face value; unknown coins show no EUR value
 
 **Layout:** Fixed 800x480 viewport. Topbar 72px fixed (2 rows). Ticker bar 46px fixed at bottom. Content area: 480 - 72 - 46 - 16px padding - gaps ≈ 332px.
 
